@@ -776,7 +776,7 @@ const BUILTIN_COLLECTIONS={
     prodUrl:'https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10',
     authTab:'basic',authUser:'',authPass:'',authToken:'',authKeyName:'',authKeyVal:'',
     steps:[
-      {label:'GET serial → LPN + Location',method:'GET',path:'/entity/serial_nbr_inventory?values_list=serial_nbr_id__serial_nbr:serial_nbr,inventory_id__container_id__container_nbr:lpn_nbr,inventory_id__container_id__curr_location_id__barcode:locn,inventory_id__container_id__status_id:status&serial_nbr_id__serial_nbr__in={{serial_nbr}}&inventory_id__container_id__status_id__in=10,30,40,50',bodyText:'',ctype:'application/json',xpath:'',xvar:'',headers:{}}
+      {label:'GET serial → LPN + Location',method:'GET',path:'/entity/serial_nbr_inventory?values_list=serial_nbr_id__serial_nbr:serial_nbr,inventory_id__container_id__container_nbr:lpn_nbr,inventory_id__container_id__curr_location_id__barcode:locn,inventory_id__container_id__status_id__description:status&serial_nbr_id__serial_nbr__in={{serial_nbr}}&inventory_id__container_id__status_id__lt=90',bodyText:'',ctype:'application/json',xpath:'',xvar:'',headers:{}}
     ]
   }
 };
