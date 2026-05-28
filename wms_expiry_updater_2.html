@@ -119,6 +119,7 @@ textarea{resize:vertical;min-height:72px;font-family:'SF Mono','Fira Mono',monos
 .method-PATCH{background:var(--se-test-light);color:var(--se-test)}
 .method-PUT{background:var(--se-test-light);color:var(--se-test)}
 .method-DELETE{background:var(--se-error-light);color:var(--se-error)}
+.method-POLL{background:var(--se-purple-light,#f0effc);color:var(--se-purple)}
 .step-body{padding:14px;display:none}
 .step-body.open{display:block}
 .step-row{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:end;margin-bottom:10px}
@@ -305,9 +306,16 @@ textarea{resize:vertical;min-height:72px;font-family:'SF Mono','Fira Mono',monos
 
   <!-- DELAY -->
   <div class="card" style="padding:1rem 1.5rem">
-    <div style="display:flex;align-items:center;gap:16px">
-      <span class="section-title">Delay between rows (ms)</span>
-      <input type="number" id="delay" value="200" min="0" max="10000" style="width:90px"/>
+    <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="section-title">Delay between rows (ms)</span>
+        <input type="number" id="delay" value="200" min="0" max="10000" style="width:90px"/>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="section-title">Concurrency</span>
+        <input type="number" id="concurrency" value="1" min="1" max="50" style="width:70px"/>
+        <span style="font-size:11px;color:var(--se-gray-600)">parallel rows</span>
+      </div>
     </div>
   </div>
 
@@ -500,7 +508,11 @@ function collectStepData(){
     card.querySelectorAll(`#${id}-hlist .header-row`).forEach(row=>{
       const[k,v]=row.querySelectorAll('input');if(k.value.trim())headers[k.value.trim()]=v.value.trim();
     });
-    return{method,path,bodyText,ctype,xpath,xvar,label,headers};
+    const pollPath=document.getElementById(id+'-poll-path')?document.getElementById(id+'-poll-path').value.trim():'ProcessStatus';
+    const pollDone=document.getElementById(id+'-poll-done')?document.getElementById(id+'-poll-done').value.trim():'COMPLETE';
+    const pollInterval=document.getElementById(id+'-poll-interval')?parseInt(document.getElementById(id+'-poll-interval').value)||3000:3000;
+    const pollTimeout=document.getElementById(id+'-poll-timeout')?parseInt(document.getElementById(id+'-poll-timeout').value)||120000:120000;
+    return{method,path,bodyText,ctype,xpath,xvar,label,headers,pollPath,pollDone,pollInterval,pollTimeout};
   });
 }
 
@@ -529,7 +541,7 @@ function addStep(d={}){
         <div class="field-group" style="margin:0">
           <label>Method</label>
           <select onchange="updateBadge('${id}',this.value)">
-            ${['GET','POST','PATCH','PUT','DELETE'].map(m=>`<option${method===m?' selected':''}>${m}</option>`).join('')}
+            ${['GET','POST','PATCH','PUT','DELETE','POLL'].map(m=>`<option${method===m?' selected':''}>${m}</option>`).join('')}
           </select>
         </div>
         <div class="field-group" style="margin:0">
@@ -572,6 +584,18 @@ function addStep(d={}){
           </div>
           <p class="var-hint" style="margin-top:8px">Then use <code>{{item_id}}</code> in next steps</p>
         </div>
+        <div class="extract-box" id="${id}-pollbox" style="margin-top:10px;display:none">
+          <div class="section-title" style="margin-bottom:8px">Poll Settings <span style="font-size:10px;font-weight:400;color:var(--se-gray-600)">(only for POLL method)</span></div>
+          <div class="extract-grid">
+            <div class="field-group" style="margin:0"><label>Status JSON path</label><input type="text" id="${id}-poll-path" value="" placeholder="ProcessStatus"/></div>
+            <div class="field-group" style="margin:0"><label>Done value</label><input type="text" id="${id}-poll-done" value="COMPLETE" placeholder="COMPLETE"/></div>
+          </div>
+          <div class="extract-grid" style="margin-top:8px">
+            <div class="field-group" style="margin:0"><label>Interval (ms)</label><input type="number" id="${id}-poll-interval" value="3000" min="500"/></div>
+            <div class="field-group" style="margin:0"><label>Timeout (ms)</label><input type="number" id="${id}-poll-timeout" value="120000" min="1000"/></div>
+          </div>
+          <p class="var-hint" style="margin-top:8px">Also stops on <code>ERROR</code> or <code>FAIL</code> status</p>
+        </div>
       </div>
     </div>`;
   document.getElementById('stepsList').appendChild(div);
@@ -582,7 +606,11 @@ function addStep(d={}){
 function removeStep(id){document.getElementById(id).remove();renumber()}
 function renumber(){document.querySelectorAll('.step-num').forEach((el,i)=>el.textContent=i+1)}
 function toggleStep(id){document.getElementById(id+'-body').classList.toggle('open')}
-function updateBadge(id,val){const b=document.getElementById(id+'-badge');b.textContent=val;b.className='method-badge method-'+val}
+function updateBadge(id,val){
+  const b=document.getElementById(id+'-badge');b.textContent=val;b.className='method-badge method-'+val;
+  const pb=document.getElementById(id+'-pollbox');
+  if(pb)pb.style.display=val==='POLL'?'block':'none';
+}
 function switchStepTab(sid,name,el){
   ['theaders','tbody','textract'].forEach(n=>{const p=document.getElementById(sid+'-'+n);if(p)p.classList.remove('active')});
   document.getElementById(sid+'-'+name).classList.add('active');
@@ -669,10 +697,12 @@ async function runAll(){
   document.getElementById('stopBtn').style.display='inline-flex';
   updateStats(rows.length,0,0);
   const authHeaders=buildAuthHeaders();
+  const concurrency=Math.max(1,parseInt(document.getElementById('concurrency').value)||1);
   let ok=0,err=0;
-  log(`Starting — ${rows.length} rows × ${steps.length} steps [${(currentEnv||'custom').toUpperCase()}]`,'info');
-  for(let i=0;i<rows.length;i++){
-    if(stopFlag){log('Stopped by user.','info');break}
+  log(`Starting — ${rows.length} rows × ${steps.length} steps [${(currentEnv||'custom').toUpperCase()}] concurrency=${concurrency}`,'info');
+
+  async function processRow(i){
+    if(stopFlag)return;
     const csvRow=rows[i];const chain={};
     setRowStatus(i,'loading');log(`── Row ${i+1}/${rows.length} ──`,'step');
     let rowFailed=false;
@@ -686,6 +716,44 @@ async function runAll(){
       if(bodyRaw)headers['Content-Type']=step.ctype||'application/json';
       log(`  [${s+1}] ${step.label} → ${step.method} ${url}`);
       try{
+        if(step.method==='POLL'){
+          const pollInterval=step.pollInterval||3000;
+          const pollTimeout=step.pollTimeout||120000;
+          const pollPath=step.pollPath||'ProcessStatus';
+          const pollDone=step.pollDone||'COMPLETE';
+          const start=Date.now();
+          let lastStatus='';
+          log(`     polling every ${pollInterval}ms, timeout ${pollTimeout/1000}s`,'info');
+          let pollOk=false;
+          while(true){
+            if(stopFlag){rowFailed=true;break}
+            if(Date.now()-start>pollTimeout){
+              log(`     ✗ Timeout after ${pollTimeout/1000}s — last status: ${lastStatus}`,'error');
+              rowFailed=true;break;
+            }
+            const pRes=await fetch(url,{method:'GET',headers});
+            const pText=await pRes.text();
+            let pParsed=null;try{pParsed=JSON.parse(pText)}catch{}
+            if(!pRes.ok){log(`     ✗ Poll GET ${pRes.status}: ${pText.slice(0,120)}`,'error');rowFailed=true;break}
+            const statusVal=String(getNestedVal(pParsed,pollPath)||'');
+            lastStatus=statusVal;
+            const elapsed=Math.round((Date.now()-start)/1000);
+            log(`     [${elapsed}s] ${pollPath} = ${statusVal}`);
+            if(statusVal===pollDone||statusVal.startsWith(pollDone)){
+              log(`     ✓ Completed: ${statusVal}`,'success');
+              if(step.xpath&&step.xvar&&pParsed){const val=getNestedVal(pParsed,step.xpath);if(val!==undefined){chain[step.xvar]=val;log(`     extract: ${step.xvar} = ${val}`,'info');}}
+              if(s===steps.length-1){resultRows.push({...csvRow,ProcessStatus:statusVal,TotalPassed:pParsed&&pParsed.TotalPassed!=null?pParsed.TotalPassed:'',TotalFailed:pParsed&&pParsed.TotalFailed!=null?pParsed.TotalFailed:''});}
+              pollOk=true;break;
+            }
+            if(statusVal.includes('ERROR')||statusVal.includes('FAIL')){
+              log(`     ✗ Terminal status: ${statusVal}`,'error');
+              if(s===steps.length-1){errorRows.push({...csvRow,ProcessStatus:statusVal,OutcomeCode:pParsed&&pParsed.OutcomeCode?pParsed.OutcomeCode:'',TotalFailed:pParsed&&pParsed.TotalFailed!=null?pParsed.TotalFailed:''});}
+              rowFailed=true;break;
+            }
+            await new Promise(r=>setTimeout(r,pollInterval));
+          }
+          if(!pollOk&&!rowFailed)rowFailed=true;
+        }else{
         const opts={method:step.method,headers};
         if(bodyRaw&&step.method!=='GET'&&step.method!=='DELETE')opts.body=bodyRaw;
         const res=await fetch(url,opts);
@@ -693,7 +761,6 @@ async function runAll(){
         let parsed=null;try{parsed=JSON.parse(text)}catch{}
         if(res.ok){
           log(`     ✓ ${res.status}`,'success');
-          // store last step response for CSV export
           if(s===steps.length-1){
             if(parsed&&parsed.results&&Array.isArray(parsed.results)){
               parsed.results.forEach(r=>resultRows.push({...csvRow,...r}));
@@ -707,15 +774,32 @@ async function runAll(){
             else log(`     extract: "${step.xpath}" not found`,'info');
           }
         }else{log(`     ✗ ${res.status}: ${text.slice(0,160)}`,'error');rowFailed=true;break}
+        }
       }catch(e){log(`     ✗ ${e.message}`,'error');rowFailed=true;break}
     }
     if(rowFailed){
       setRowStatus(i,'error');err++;
-      errorRows.push({...csvRow,_error:'failed',_step_failed:steps.filter((_,si)=>si<steps.length).map(s=>s.label).join(' > ')});
+      errorRows.push({...csvRow,_error:'failed'});
     }else{setRowStatus(i,'success');ok++}
     updateStats(rows.length,ok,err);
-    if(i<rows.length-1&&!stopFlag)await new Promise(r=>setTimeout(r,delay));
   }
+
+  // Run with concurrency
+  let idx=0;
+  async function worker(){
+    while(true){
+      if(stopFlag)break;
+      const i=idx++;
+      if(i>=rows.length)break;
+      await processRow(i);
+      if(delay>0&&!stopFlag)await new Promise(r=>setTimeout(r,delay));
+    }
+  }
+  const workers=[];
+  for(let w=0;w<concurrency;w++)workers.push(worker());
+  await Promise.all(workers);
+
+  if(stopFlag)log('Stopped by user.','info');
   document.getElementById('runBtn').disabled=false;
   document.getElementById('stopBtn').style.display='none';
   log(`Completed: ${ok} success, ${err} errors.`,ok===rows.length?'success':'info');
@@ -762,6 +846,15 @@ function exportLog(){
 
 // ── INIT ──────────────────────────────────────────────
 const BUILTIN_COLLECTIONS={
+  'Fusion — Schedule Line':{
+    testUrl:'https://fa-evzi-test-saasfaprod1.fa.ocs.oraclecloud.com:443',
+    prodUrl:'https://fa-evzi-prod-saasfaprod1.fa.ocs.oraclecloud.com:443',
+    authTab:'basic',authUser:'',authPass:'',authToken:'',authKeyName:'',authKeyVal:'',
+    steps:[
+      {label:'POST Schedule Line',method:'POST',path:'/fscmRestApi/resources/11.13.18.05/salesOrderActionRequests',bodyText:'{\n  "ActionCode": "ORA_FOM_SCHEDULE_LINE",\n  "requests": [\n    {\n      "FulfillLineId": {{FulfillLineId}}\n    }\n  ]\n}',ctype:'application/json',xpath:'ActionRequestId',xvar:'ActionRequestId',headers:{},pollPath:'',pollDone:'',pollInterval:3000,pollTimeout:120000},
+      {label:'POLL until complete',method:'POLL',path:'/fscmRestApi/resources/11.13.18.05/salesOrderActionRequests/{{ActionRequestId}}',bodyText:'',ctype:'application/json',xpath:'ProcessStatus',xvar:'FinalStatus',headers:{},pollPath:'ProcessStatus',pollDone:'COMPLETE',pollInterval:3000,pollTimeout:120000}
+    ]
+  },
   'WMS — Expiry Date Update':{
     testUrl:'https://tc4.wms.ocs.oraclecloud.com:443/solaredge_test/wms/lgfapi/v10',
     prodUrl:'https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10',
@@ -776,7 +869,7 @@ const BUILTIN_COLLECTIONS={
     prodUrl:'https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10',
     authTab:'basic',authUser:'',authPass:'',authToken:'',authKeyName:'',authKeyVal:'',
     steps:[
-      {label:'GET serial → LPN + Location',method:'GET',path:'/entity/serial_nbr_inventory?values_list=serial_nbr_id__serial_nbr:serial_nbr,inventory_id__container_id__container_nbr:lpn_nbr,inventory_id__container_id__curr_location_id__barcode:locn,inventory_id__container_id__status_id__description:status&serial_nbr_id__serial_nbr__in={{serial_nbr}}&inventory_id__container_id__status_id__lt=90',bodyText:'',ctype:'application/json',xpath:'',xvar:'',headers:{}}
+      {label:'GET serial → LPN + Location',method:'GET',path:'/entity/serial_nbr_inventory?values_list=serial_nbr_id__serial_nbr:serial_nbr,inventory_id__container_id__container_nbr:lpn_nbr,inventory_id__container_id__curr_location_id__barcode:locn,inventory_id__container_id__status_id:status&serial_nbr_id__serial_nbr__in={{serial_nbr}}&inventory_id__container_id__status_id__in=10,30,40,50',bodyText:'',ctype:'application/json',xpath:'',xvar:'',headers:{}}
     ]
   }
 };
