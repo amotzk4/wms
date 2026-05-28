@@ -3,273 +3,229 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WMS Expiry Date Updater – SolarEdge</title>
+<title>Oracle API Runner – SolarEdge</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
-  :root {
-    --se-red: #da2128;
-    --se-red-dark: #b01a20;
-    --se-red-light: #fdf0f0;
-    --se-black: #1a1a1a;
-    --se-gray-100: #f7f6f4;
-    --se-gray-200: #ebebeb;
-    --se-gray-400: #b0aeaa;
-    --se-gray-600: #6b6966;
-    --se-test: #e67e22;
-    --se-test-light: #fef5ec;
-    --se-success: #27662a;
-    --se-success-light: #edf6ee;
-    --se-error: #a32d2d;
-    --se-error-light: #fceaea;
-    --se-info: #185FA5;
-    --se-info-light: #e6f1fb;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --se-red:#da2128;--se-red-dark:#b01a20;--se-red-light:#fdf0f0;
+  --se-black:#1a1a1a;--se-gray-100:#f7f6f4;--se-gray-200:#ebebeb;
+  --se-gray-400:#b0aeaa;--se-gray-600:#6b6966;
+  --se-test:#e67e22;--se-test-light:#fef5ec;
+  --se-success:#27662a;--se-success-light:#edf6ee;
+  --se-error:#a32d2d;--se-error-light:#fceaea;
+  --se-info:#185FA5;--se-info-light:#e6f1fb;
+  --se-purple:#7F77DD;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  min-height:100vh;background-color:#1a2a3a;
+  background-image:linear-gradient(to bottom,rgba(10,20,35,0.62),rgba(10,20,35,0.55)),
+    url('https://images.unsplash.com/photo-1509391366360-2e959784a276?w=1600&q=80&auto=format&fit=crop');
+  background-size:cover;background-position:center;background-attachment:fixed;
+}
+.topbar{
+  background:rgba(10,14,20,0.82);backdrop-filter:blur(8px);
+  border-bottom:1px solid rgba(255,255,255,0.08);
+  padding:0 2rem;height:56px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+}
+.se-logo{display:flex;align-items:center;user-select:none}
+.se-logo-solar{font-size:21px;font-weight:700;color:#fff;font-family:Arial,sans-serif;letter-spacing:-0.5px}
+.se-logo-edge{font-size:21px;font-weight:700;color:#fff;background:var(--se-red);padding:1px 6px 2px;font-family:Arial,sans-serif;letter-spacing:-0.5px;border-radius:2px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.topbar-title{font-size:13px;color:rgba(255,255,255,0.45);letter-spacing:.03em}
+.env-pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.05em;display:none}
+.env-pill.show-test{display:inline-block;background:var(--se-test);color:#fff}
+.env-pill.show-prod{display:inline-block;background:var(--se-red);color:#fff}
+.page{max-width:820px;margin:0 auto;padding:2.5rem 1rem 4rem}
+.card{background:rgba(255,255,255,0.97);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.18),0 1px 4px rgba(0,0,0,0.12)}
+.card-header{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.card-header i{font-size:16px;color:var(--se-red)}
+.section-title{font-size:11px;font-weight:700;color:var(--se-gray-600);text-transform:uppercase;letter-spacing:.08em}
+.env-selector{display:flex;gap:10px}
+.env-btn{flex:1;padding:11px 16px;border-radius:8px;border:1.5px solid var(--se-gray-200);background:#fff;cursor:pointer;transition:all .15s;text-align:left;display:flex;align-items:center;gap:10px}
+.env-btn:hover{border-color:var(--se-gray-400);background:var(--se-gray-100)}
+.env-btn.active-test{border-color:var(--se-test);background:var(--se-test-light)}
+.env-btn.active-prod{border-color:var(--se-red);background:var(--se-red-light)}
+.env-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.env-dot-prod{background:var(--se-red)}.env-dot-test{background:var(--se-test)}
+.env-info{flex:1}
+.env-label{font-size:13px;font-weight:600;color:var(--se-black)}
+.env-url{font-size:11px;color:var(--se-gray-600);margin-top:1px;font-family:monospace}
+.env-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;letter-spacing:.05em}
+.env-badge-prod{background:var(--se-red);color:#fff}
+.env-badge-test{background:var(--se-test);color:#fff}
+.prod-warning{display:none;align-items:center;gap:8px;background:var(--se-red-light);border:0.5px solid #f09595;border-radius:8px;padding:9px 12px;margin-top:10px;font-size:12px;color:var(--se-error)}
+.prod-warning.show{display:flex}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-group{display:flex;flex-direction:column;gap:4px}
+.field-group label{font-size:12px;color:var(--se-gray-600);font-weight:600}
+input[type=text],input[type=password],input[type=number],select,textarea{border:0.5px solid var(--se-gray-400);border-radius:7px;padding:7px 10px;font-size:13px;background:#fff;color:var(--se-black);width:100%;font-family:inherit;transition:box-shadow .15s,border-color .15s}
+input:focus,select:focus,textarea:focus{outline:none;box-shadow:0 0 0 2px rgba(218,33,40,0.2);border-color:var(--se-red)}
+textarea{resize:vertical;min-height:72px;font-family:'SF Mono','Fira Mono',monospace;font-size:12px}
+.var-hint{font-size:11px;color:var(--se-gray-600);margin-top:5px}
+.var-hint code{background:var(--se-gray-100);padding:1px 5px;border-radius:4px;font-size:11px;font-family:monospace}
 
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    min-height: 100vh;
-    background-color: #1a2a3a;
-    /* Solar panels photo via Unsplash (free to use) */
-    background-image:
-      linear-gradient(to bottom, rgba(10,20,35,0.62) 0%, rgba(10,20,35,0.55) 100%),
-      url('https://images.unsplash.com/photo-1509391366360-2e959784a276?w=1600&q=80&auto=format&fit=crop');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-  }
+/* COLLECTIONS */
+.collections-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.collection-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;
+  border:1px solid var(--se-gray-200);background:#fff;cursor:pointer;
+  transition:all .15s;color:var(--se-black);
+}
+.collection-chip:hover{border-color:var(--se-gray-400);background:var(--se-gray-100)}
+.collection-chip.active{border-color:var(--se-red);background:var(--se-red-light);color:var(--se-red)}
+.collection-chip .chip-del{
+  width:14px;height:14px;border-radius:50%;background:none;border:none;
+  cursor:pointer;color:var(--se-gray-400);font-size:13px;line-height:1;
+  display:flex;align-items:center;justify-content:center;padding:0;
+  transition:all .15s;
+}
+.collection-chip .chip-del:hover{color:var(--se-error)}
+.coll-btn{
+  display:inline-flex;align-items:center;gap:5px;padding:5px 12px;
+  border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;
+  border:1px dashed var(--se-gray-400);background:#fff;color:var(--se-gray-600);
+  transition:all .15s;
+}
+.coll-btn:hover{border-color:var(--se-red);color:var(--se-red);background:var(--se-red-light)}
+.coll-empty{font-size:12px;color:var(--se-gray-400);font-style:italic}
 
-  /* ── TOP BAR ── */
-  .topbar {
-    background: rgba(10, 14, 20, 0.82);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    padding: 0 2rem;
-    height: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
+/* SAVE MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;padding:1.5rem;width:340px;box-shadow:0 8px 32px rgba(0,0,0,0.25)}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:12px}
+.modal input{margin-bottom:12px}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end}
+.modal-cancel{padding:7px 16px;border-radius:7px;border:0.5px solid var(--se-gray-400);background:#fff;font-size:13px;cursor:pointer}
+.modal-cancel:hover{background:var(--se-gray-100)}
+.modal-save{padding:7px 16px;border-radius:7px;border:none;background:var(--se-red);color:#fff;font-size:13px;font-weight:600;cursor:pointer}
+.modal-save:hover{background:var(--se-red-dark)}
 
-  /* ── LOGO ── */
-  .se-logo { display: flex; align-items: center; user-select: none; gap: 0; }
-  .se-logo-solar {
-    font-size: 21px; font-weight: 700;
-    color: #fff;
-    font-family: Arial, 'Helvetica Neue', sans-serif;
-    letter-spacing: -0.5px;
-  }
-  .se-logo-edge {
-    font-size: 21px; font-weight: 700;
-    color: #fff;
-    background: var(--se-red);
-    padding: 1px 6px 2px;
-    font-family: Arial, 'Helvetica Neue', sans-serif;
-    letter-spacing: -0.5px;
-    margin-left: 0px;
-    border-radius: 2px;
-  }
-  .topbar-right { display: flex; align-items: center; gap: 10px; }
-  .topbar-title { font-size: 13px; color: rgba(255,255,255,0.45); letter-spacing: 0.03em; }
-  .env-pill {
-    font-size: 11px; font-weight: 700;
-    padding: 3px 10px; border-radius: 20px;
-    letter-spacing: 0.05em;
-    display: none;
-  }
-  .env-pill.show-test { display: inline-block; background: var(--se-test); color: #fff; }
-  .env-pill.show-prod { display: inline-block; background: var(--se-red); color: #fff; }
-
-  /* ── PAGE ── */
-  .page { max-width: 760px; margin: 0 auto; padding: 2.5rem 1rem 4rem; }
-
-  /* ── CARD ── */
-  .card {
-    background: rgba(255,255,255,0.97);
-    border: none;
-    border-radius: 12px;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 1rem;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.12);
-  }
-  .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
-  .card-header i { font-size: 16px; color: var(--se-red); }
-  .section-title { font-size: 11px; font-weight: 700; color: var(--se-gray-600); text-transform: uppercase; letter-spacing: 0.08em; }
-
-  /* ── ENV SELECTOR ── */
-  .env-selector { display: flex; gap: 10px; }
-  .env-btn {
-    flex: 1; padding: 11px 16px;
-    border-radius: 8px;
-    border: 1.5px solid var(--se-gray-200);
-    background: #fff;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-align: left;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .env-btn:hover { border-color: var(--se-gray-400); background: var(--se-gray-100); }
-  .env-btn.active-test { border-color: var(--se-test); background: var(--se-test-light); }
-  .env-btn.active-prod { border-color: var(--se-red); background: var(--se-red-light); }
-  .env-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  .env-dot-prod { background: var(--se-red); }
-  .env-dot-test { background: var(--se-test); }
-  .env-info { flex: 1; }
-  .env-label { font-size: 13px; font-weight: 600; color: var(--se-black); }
-  .env-url   { font-size: 11px; color: var(--se-gray-600); margin-top: 1px; font-family: monospace; }
-  .env-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; letter-spacing: 0.05em; }
-  .env-badge-prod { background: var(--se-red); color: #fff; }
-  .env-badge-test { background: var(--se-test); color: #fff; }
-  .prod-warning {
-    display: none; align-items: center; gap: 8px;
-    background: var(--se-red-light);
-    border: 0.5px solid #f09595;
-    border-radius: 8px;
-    padding: 9px 12px;
-    margin-top: 10px;
-    font-size: 12px; color: var(--se-error);
-  }
-  .prod-warning.show { display: flex; }
-
-  /* ── FORM ── */
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-  .field-group { display: flex; flex-direction: column; gap: 4px; }
-  .field-group label { font-size: 12px; color: var(--se-gray-600); font-weight: 600; }
-  input[type=text], input[type=password], select {
-    border: 0.5px solid var(--se-gray-400);
-    border-radius: 7px; padding: 7px 10px;
-    font-size: 13px; background: #fff; color: var(--se-black); width: 100%;
-    transition: box-shadow 0.15s, border-color 0.15s;
-  }
-  input:focus, select:focus { outline: none; box-shadow: 0 0 0 2px rgba(218,33,40,0.2); border-color: var(--se-red); }
-
-  /* ── UPLOAD ── */
-  .upload-area {
-    border: 2px dashed var(--se-gray-400);
-    border-radius: 8px; padding: 1.5rem;
-    text-align: center; cursor: pointer;
-    transition: all 0.15s;
-  }
-  .upload-area:hover { border-color: var(--se-red); background: var(--se-red-light); }
-  .upload-area.loaded { border-color: var(--se-success); border-style: solid; background: var(--se-success-light); }
-  .upload-area i { font-size: 30px; color: var(--se-gray-400); display: block; margin-bottom: 6px; transition: color 0.15s; }
-  .upload-area:hover i { color: var(--se-red); }
-  .upload-area.loaded i { color: var(--se-success); }
-  .upload-area p { font-size: 13px; color: var(--se-gray-600); }
-  .upload-area input { display: none; }
-  .divider { border: none; border-top: 0.5px solid var(--se-gray-200); margin: 14px 0; }
-
-  /* ── PREVIEW ── */
-  .preview-table { width: 100%; font-size: 13px; border-collapse: collapse; }
-  .preview-table th { text-align: left; padding: 7px 10px; font-weight: 700; color: var(--se-gray-600); border-bottom: 0.5px solid var(--se-gray-200); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
-  .preview-table td { padding: 7px 10px; border-bottom: 0.5px solid var(--se-gray-200); }
-  .preview-table tr:last-child td { border-bottom: none; }
-
-  /* ── BADGES ── */
-  .badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 20px; }
-  .badge-pending { background: var(--se-gray-200); color: var(--se-gray-600); }
-  .badge-loading { background: var(--se-info-light); color: var(--se-info); }
-  .badge-success { background: var(--se-success-light); color: var(--se-success); }
-  .badge-error   { background: var(--se-error-light); color: var(--se-error); }
-
-  /* ── BUTTONS ── */
-  .btn-row { display: flex; gap: 10px; align-items: center; margin-bottom: 1rem; }
-  .run-btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 10px 24px; background: var(--se-red); color: #fff;
-    border: none; border-radius: 8px; font-size: 14px; font-weight: 700;
-    cursor: pointer; transition: background 0.15s, transform 0.1s;
-    box-shadow: 0 2px 8px rgba(218,33,40,0.35);
-  }
-  .run-btn:hover { background: var(--se-red-dark); }
-  .run-btn:active { transform: scale(0.98); }
-  .run-btn:disabled { background: var(--se-gray-400); box-shadow: none; cursor: not-allowed; }
-  .stop-btn {
-    display: none; align-items: center; gap: 6px;
-    padding: 10px 16px; background: #fff; color: var(--se-error);
-    border: 0.5px solid #f09595; border-radius: 8px; font-size: 13px;
-    cursor: pointer; transition: background 0.15s;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  }
-  .stop-btn:hover { background: var(--se-error-light); }
-  .export-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 6px 14px; background: #fff; color: var(--se-black);
-    border: 0.5px solid var(--se-gray-400); border-radius: 7px;
-    font-size: 12px; cursor: pointer; transition: background 0.15s; margin-top: 10px;
-  }
-  .export-btn:hover { background: var(--se-gray-100); }
-
-  /* ── STATS ── */
-  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
-  .stat { background: var(--se-gray-100); border-radius: 8px; padding: 10px 14px; }
-  .stat-label { font-size: 11px; color: var(--se-gray-600); font-weight: 600; }
-  .stat-val   { font-size: 22px; font-weight: 700; margin-top: 2px; }
-
-  /* ── PROGRESS ── */
-  .progress-bar { height: 5px; background: var(--se-gray-200); border-radius: 4px; overflow: hidden; margin: 10px 0 4px; }
-  .progress-fill { height: 100%; background: var(--se-red); border-radius: 4px; transition: width 0.3s; }
-
-  /* ── LOG ── */
-  .log-area {
-    font-family: 'SF Mono', 'Fira Mono', 'Consolas', monospace;
-    font-size: 12px; max-height: 200px; overflow-y: auto;
-    background: var(--se-gray-100); border-radius: 8px;
-    padding: 10px 14px; color: var(--se-gray-600); line-height: 1.7;
-  }
-  .log-success { color: var(--se-success); }
-  .log-error   { color: var(--se-error); }
-  .log-info    { color: var(--se-info); }
-
-  @media (max-width: 520px) {
-    .grid-2, .grid-3, .stats-grid, .env-selector { grid-template-columns: 1fr; flex-direction: column; }
-    .topbar-title { display: none; }
-  }
+/* STEPS */
+.steps-list{display:flex;flex-direction:column;gap:10px}
+.step-card{border:1px solid var(--se-gray-200);border-radius:10px;overflow:hidden}
+.step-header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--se-gray-100);cursor:pointer;user-select:none}
+.step-num{width:22px;height:22px;border-radius:50%;background:var(--se-red);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-label-text{font-size:13px;font-weight:600;flex:1;color:var(--se-black)}
+.method-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px}
+.method-GET{background:var(--se-info-light);color:var(--se-info)}
+.method-POST{background:var(--se-success-light);color:var(--se-success)}
+.method-PATCH{background:var(--se-test-light);color:var(--se-test)}
+.method-PUT{background:var(--se-test-light);color:var(--se-test)}
+.method-DELETE{background:var(--se-error-light);color:var(--se-error)}
+.step-body{padding:14px;display:none}
+.step-body.open{display:block}
+.step-row{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:end;margin-bottom:10px}
+.step-tabs{display:flex;gap:2px;margin-bottom:12px;border-bottom:0.5px solid var(--se-gray-200)}
+.step-tab{padding:5px 13px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-0.5px;color:var(--se-gray-600);transition:color .15s;font-weight:500}
+.step-tab.active{color:var(--se-red);border-bottom-color:var(--se-red)}
+.step-tab-panel{display:none}.step-tab-panel.active{display:block}
+.header-row{display:grid;grid-template-columns:1fr 1fr 28px;gap:6px;margin-bottom:6px;align-items:center}
+.icon-btn{width:28px;height:28px;border:0.5px solid var(--se-gray-400);border-radius:6px;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--se-gray-600);flex-shrink:0;transition:all .15s}
+.icon-btn:hover{background:var(--se-gray-100)}
+.icon-btn.danger:hover{background:var(--se-error-light);color:var(--se-error);border-color:#f09595}
+.add-btn{font-size:12px;color:var(--se-info);background:none;border:none;cursor:pointer;padding:2px 0;display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-weight:500}
+.extract-box{background:var(--se-gray-100);border-radius:8px;padding:10px 12px;margin-top:2px}
+.extract-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.divider{border:none;border-top:0.5px solid var(--se-gray-200);margin:12px 0}
+.upload-area{border:2px dashed var(--se-gray-400);border-radius:8px;padding:1.25rem;text-align:center;cursor:pointer;transition:all .15s}
+.upload-area:hover{border-color:var(--se-red);background:var(--se-red-light)}
+.upload-area.loaded{border-color:var(--se-success);border-style:solid;background:var(--se-success-light)}
+.upload-area i{font-size:28px;color:var(--se-gray-400);display:block;margin-bottom:5px;transition:color .15s}
+.upload-area:hover i{color:var(--se-red)}
+.upload-area.loaded i{color:var(--se-success)}
+.upload-area p{font-size:13px;color:var(--se-gray-600)}
+.preview-table{width:100%;font-size:12px;border-collapse:collapse}
+.preview-table th{text-align:left;padding:6px 10px;font-weight:700;color:var(--se-gray-600);border-bottom:0.5px solid var(--se-gray-200);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.preview-table td{padding:6px 10px;border-bottom:0.5px solid var(--se-gray-200);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview-table tr:last-child td{border-bottom:none}
+.badge{display:inline-flex;align-items:center;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px}
+.badge-pending{background:var(--se-gray-200);color:var(--se-gray-600)}
+.badge-loading{background:var(--se-info-light);color:var(--se-info)}
+.badge-success{background:var(--se-success-light);color:var(--se-success)}
+.badge-error{background:var(--se-error-light);color:var(--se-error)}
+.btn-row{display:flex;gap:10px;align-items:center;margin-bottom:1rem;flex-wrap:wrap}
+.run-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 24px;background:var(--se-red);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:background .15s,transform .1s;box-shadow:0 2px 8px rgba(218,33,40,0.35)}
+.run-btn:hover{background:var(--se-red-dark)}
+.run-btn:active{transform:scale(.98)}
+.run-btn:disabled{background:var(--se-gray-400);box-shadow:none;cursor:not-allowed}
+.stop-btn{display:none;align-items:center;gap:6px;padding:10px 16px;background:#fff;color:var(--se-error);border:0.5px solid #f09595;border-radius:8px;font-size:13px;cursor:pointer;transition:background .15s;box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+.stop-btn:hover{background:var(--se-error-light)}
+.add-step-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#fff;border:1px dashed var(--se-gray-400);border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;color:var(--se-gray-600);transition:all .15s}
+.add-step-btn:hover{border-color:var(--se-red);color:var(--se-red);background:var(--se-red-light)}
+.export-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:#fff;color:var(--se-black);border:0.5px solid var(--se-gray-400);border-radius:7px;font-size:12px;cursor:pointer;transition:background .15s;margin-top:10px}
+.export-btn:hover{background:var(--se-gray-100)}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.stat{background:var(--se-gray-100);border-radius:8px;padding:10px 14px}
+.stat-label{font-size:11px;color:var(--se-gray-600);font-weight:600}
+.stat-val{font-size:22px;font-weight:700;margin-top:2px}
+.progress-bar{height:5px;background:var(--se-gray-200);border-radius:4px;overflow:hidden;margin:10px 0 4px}
+.progress-fill{height:100%;background:var(--se-red);border-radius:4px;transition:width .3s}
+.log-area{font-family:'SF Mono','Fira Mono',monospace;font-size:12px;max-height:220px;overflow-y:auto;background:var(--se-gray-100);border-radius:8px;padding:10px 14px;color:var(--se-gray-600);line-height:1.7}
+.log-success{color:var(--se-success)}.log-error{color:var(--se-error)}.log-info{color:var(--se-info)}.log-step{color:var(--se-purple);font-weight:600}
+@media(max-width:520px){.grid-2,.stats-grid,.env-selector{grid-template-columns:1fr;flex-direction:column}.topbar-title{display:none}}
 </style>
 </head>
 <body>
 
-<!-- TOP BAR -->
+<!-- SAVE MODAL -->
+<div class="modal-overlay" id="saveModal">
+  <div class="modal">
+    <h3>Save Collection</h3>
+    <div class="field-group">
+      <label>Collection Name</label>
+      <input type="text" id="collNameInput" placeholder="e.g. WMS Expiry Update" onkeydown="if(event.key==='Enter')confirmSave()"/>
+    </div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-save" onclick="confirmSave()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOPBAR -->
 <div class="topbar">
   <div class="se-logo">
     <span class="se-logo-solar">solar</span><span class="se-logo-edge">edge</span>
   </div>
   <div class="topbar-right">
-    <span class="topbar-title">WMS · Expiry Date Updater</span>
+    <span class="topbar-title">Oracle API Runner</span>
     <span class="env-pill" id="envPill"></span>
   </div>
 </div>
 
 <div class="page">
 
+  <!-- COLLECTIONS -->
+  <div class="card">
+    <div class="card-header"><i class="ti ti-folders"></i><span class="section-title">Collections</span></div>
+    <div class="collections-bar" id="collectionsBar">
+      <span class="coll-empty" id="collEmpty">No saved collections yet</span>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="coll-btn" onclick="openSaveModal()"><i class="ti ti-device-floppy"></i> Save current</button>
+      <button class="coll-btn" onclick="clearAllSteps()"><i class="ti ti-trash"></i> Clear steps</button>
+    </div>
+  </div>
+
   <!-- ENVIRONMENT -->
   <div class="card">
-    <div class="card-header">
-      <i class="ti ti-server"></i>
-      <span class="section-title">Environment</span>
-    </div>
+    <div class="card-header"><i class="ti ti-server"></i><span class="section-title">Environment</span></div>
     <div class="env-selector">
       <button class="env-btn" id="btnTest" onclick="selectEnv('test')">
         <div class="env-dot env-dot-test"></div>
-        <div class="env-info">
-          <div class="env-label">Test</div>
-          <div class="env-url">tc4.wms.ocs.oraclecloud.com</div>
-        </div>
+        <div class="env-info"><div class="env-label">Test</div><div class="env-url" id="testUrlLabel">—</div></div>
         <span class="env-badge env-badge-test">TEST</span>
       </button>
       <button class="env-btn" id="btnProd" onclick="selectEnv('prod')">
         <div class="env-dot env-dot-prod"></div>
-        <div class="env-info">
-          <div class="env-label">Production</div>
-          <div class="env-url">c4.wms.ocs.oraclecloud.com</div>
-        </div>
+        <div class="env-info"><div class="env-label">Production</div><div class="env-url" id="prodUrlLabel">—</div></div>
         <span class="env-badge env-badge-prod">PROD</span>
       </button>
     </div>
@@ -277,322 +233,571 @@
       <i class="ti ti-alert-triangle" style="font-size:16px;flex-shrink:0"></i>
       <span>You are connected to <strong>Production</strong>. Changes are live and irreversible.</span>
     </div>
-    <div style="margin-top:12px" class="field-group">
-      <label>Base URL</label>
-      <input type="text" id="baseUrl" placeholder="Select an environment above" />
+    <div style="margin-top:12px" class="grid-2">
+      <div class="field-group">
+        <label>Test Base URL</label>
+        <input type="text" id="testUrl" placeholder="https://tc4..." oninput="syncEnvUrls()"/>
+      </div>
+      <div class="field-group">
+        <label>Production Base URL</label>
+        <input type="text" id="prodUrl" placeholder="https://c4..." oninput="syncEnvUrls()"/>
+      </div>
     </div>
+    <div class="var-hint">Base URL is prepended to every Path automatically</div>
   </div>
 
   <!-- AUTH -->
   <div class="card">
-    <div class="card-header">
-      <i class="ti ti-lock"></i>
-      <span class="section-title">Authentication</span>
+    <div class="card-header"><i class="ti ti-lock"></i><span class="section-title">Authentication</span></div>
+    <div class="step-tabs" id="authTabs">
+      <div class="step-tab active" onclick="switchAuthTab('none',this)">None</div>
+      <div class="step-tab" onclick="switchAuthTab('basic',this)">Basic Auth</div>
+      <div class="step-tab" onclick="switchAuthTab('bearer',this)">Bearer Token</div>
+      <div class="step-tab" onclick="switchAuthTab('apikey',this)">API Key</div>
     </div>
-    <div class="grid-2">
-      <div class="field-group">
-        <label>Username</label>
-        <input type="text" id="username" placeholder="WMS username" />
+    <div class="step-tab-panel active" id="auth-none"><p style="font-size:12px;color:var(--se-gray-600)">No authentication</p></div>
+    <div class="step-tab-panel" id="auth-basic">
+      <div class="grid-2">
+        <div class="field-group" style="margin:0"><label>Username</label><input type="text" id="auth-user" placeholder="username"/></div>
+        <div class="field-group" style="margin:0"><label>Password</label><input type="password" id="auth-pass" placeholder="password"/></div>
       </div>
-      <div class="field-group">
-        <label>Password</label>
-        <input type="password" id="password" placeholder="WMS password" />
+    </div>
+    <div class="step-tab-panel" id="auth-bearer">
+      <div class="field-group" style="margin:0"><label>Token</label><input type="text" id="auth-token" placeholder="Bearer token..."/></div>
+    </div>
+    <div class="step-tab-panel" id="auth-apikey">
+      <div class="grid-2">
+        <div class="field-group" style="margin:0"><label>Header name</label><input type="text" id="auth-key-name" placeholder="X-API-Key"/></div>
+        <div class="field-group" style="margin:0"><label>Value</label><input type="text" id="auth-key-val" placeholder="your-api-key"/></div>
       </div>
+    </div>
+  </div>
+
+  <!-- STEPS -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div class="card-header" style="margin:0"><i class="ti ti-list-check"></i><span class="section-title">Steps</span></div>
+      <span style="font-size:11px;color:var(--se-gray-600)">Extracted values pass to the next step</span>
+    </div>
+    <div class="steps-list" id="stepsList"></div>
+    <div style="margin-top:12px">
+      <button class="add-step-btn" onclick="addStep()"><i class="ti ti-plus"></i> Add Step</button>
     </div>
   </div>
 
   <!-- CSV -->
   <div class="card">
-    <div class="card-header">
-      <i class="ti ti-file-spreadsheet"></i>
-      <span class="section-title">CSV File</span>
-    </div>
+    <div class="card-header"><i class="ti ti-file-spreadsheet"></i><span class="section-title">CSV File</span></div>
     <div class="upload-area" id="dropZone" onclick="document.getElementById('csvFile').click()">
       <i class="ti ti-upload" id="uploadIcon"></i>
       <p id="uploadLabel">Click to upload a CSV file</p>
-      <p style="font-size:11px;margin-top:4px;color:var(--se-gray-400)">Required columns: batch_nbr, expiry_date</p>
-      <input type="file" id="csvFile" accept=".csv" onchange="handleFile(event)" />
+      <p style="font-size:11px;margin-top:3px;color:var(--se-gray-400)">Each row = one full run of all steps</p>
+      <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="handleCSV(event)"/>
     </div>
-    <div id="colMapSection" style="display:none">
-      <hr class="divider">
-      <div class="grid-3">
-        <div class="field-group">
-          <label>batch_nbr column</label>
-          <select id="colBatch"></select>
-        </div>
-        <div class="field-group">
-          <label>expiry_date column</label>
-          <select id="colExpiry"></select>
-        </div>
-        <div class="field-group">
-          <label>Date output format</label>
-          <select id="dateFormat">
-            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-            <option value="raw">As-is from file</option>
-          </select>
-        </div>
+    <div id="csvPreview" style="display:none;margin-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;color:var(--se-gray-600)" id="csvInfo"></span>
+        <span style="font-size:11px;color:var(--se-gray-600)">Columns: <span id="csvCols" style="color:var(--se-info)"></span></span>
       </div>
+      <div style="overflow-x:auto"><table class="preview-table" id="previewTable"></table></div>
     </div>
   </div>
 
-  <!-- PREVIEW -->
-  <div class="card" id="previewCard" style="display:none">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div class="card-header" style="margin:0">
-        <i class="ti ti-table"></i>
-        <span class="section-title">Preview</span>
-      </div>
-      <span id="rowCount" style="font-size:12px;color:var(--se-gray-600)"></span>
-    </div>
-    <div style="overflow-x:auto">
-      <table class="preview-table">
-        <thead><tr>
-          <th>batch_nbr</th>
-          <th>expiry_date</th>
-          <th>status</th>
-        </tr></thead>
-        <tbody id="previewBody"></tbody>
-      </table>
+  <!-- DELAY -->
+  <div class="card" style="padding:1rem 1.5rem">
+    <div style="display:flex;align-items:center;gap:16px">
+      <span class="section-title">Delay between rows (ms)</span>
+      <input type="number" id="delay" value="200" min="0" max="10000" style="width:90px"/>
     </div>
   </div>
 
-  <!-- BUTTONS -->
   <div class="btn-row">
-    <button class="run-btn" id="runBtn" onclick="runUpdate()" disabled>
-      <i class="ti ti-player-play"></i>
-      Run Update
-    </button>
-    <button class="stop-btn" id="stopBtn" onclick="stopRun()">
-      <i class="ti ti-player-stop"></i>
-      Stop
-    </button>
+    <button class="run-btn" id="runBtn" onclick="runAll()"><i class="ti ti-player-play"></i> Run</button>
+    <button class="stop-btn" id="stopBtn" onclick="stopRun()"><i class="ti ti-player-stop"></i> Stop</button>
   </div>
 
   <!-- RESULTS -->
   <div class="card" id="resultsCard" style="display:none">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <div class="card-header" style="margin:0">
-        <i class="ti ti-activity"></i>
-        <span class="section-title">Progress</span>
-      </div>
+      <div class="card-header" style="margin:0"><i class="ti ti-activity"></i><span class="section-title">Progress</span></div>
       <span id="progressText" style="font-size:12px;color:var(--se-gray-600)">0 / 0</span>
     </div>
     <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
     <div class="stats-grid">
-      <div class="stat"><div class="stat-label">Total</div><div class="stat-val" id="statTotal">0</div></div>
+      <div class="stat"><div class="stat-label">Rows</div><div class="stat-val" id="statTotal">0</div></div>
       <div class="stat"><div class="stat-label">Success</div><div class="stat-val" id="statOk" style="color:var(--se-success)">0</div></div>
       <div class="stat"><div class="stat-label">Errors</div><div class="stat-val" id="statErr" style="color:var(--se-error)">0</div></div>
       <div class="stat"><div class="stat-label">Remaining</div><div class="stat-val" id="statLeft">0</div></div>
     </div>
     <hr class="divider">
     <div class="log-area" id="logArea"></div>
-    <button class="export-btn" onclick="exportLog()">
-      <i class="ti ti-download" style="font-size:13px"></i>
-      Export Log
-    </button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="export-btn" onclick="exportCSV()"><i class="ti ti-table-export" style="font-size:13px"></i> Export Results + Errors CSV</button>
+    <button class="export-btn" onclick="exportLog()"><i class="ti ti-download" style="font-size:13px"></i> Export Log</button>
+    </div>
   </div>
 
 </div>
 
 <script>
-const ENVS = {
-  test: 'https://tc4.wms.ocs.oraclecloud.com:443/solaredge_test/wms/lgfapi/v10',
-  prod: 'https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10'
-};
-let currentEnv = null, rows = [], stopFlag = false, logLines = [];
+const STORAGE_KEY='se_api_runner_collections';
+let csvRows=[],csvHeaders=[],stopFlag=false,logLines=[],resultRows=[],errorRows=[];
+let currentEnv=null,currentAuthTab='none',stepCounter=0;
+let activeCollection=null;
 
-function selectEnv(env) {
-  currentEnv = env;
-  document.getElementById('baseUrl').value = ENVS[env];
-  document.getElementById('btnTest').className = 'env-btn' + (env === 'test' ? ' active-test' : '');
-  document.getElementById('btnProd').className = 'env-btn' + (env === 'prod' ? ' active-prod' : '');
-  document.getElementById('prodWarning').className = 'prod-warning' + (env === 'prod' ? ' show' : '');
-  const pill = document.getElementById('envPill');
-  pill.textContent = env.toUpperCase();
-  pill.className = 'env-pill show-' + env;
-  checkRunReady();
+// ── COLLECTIONS ───────────────────────────────────────
+function loadCollections(){return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')}
+function saveCollections(cols){localStorage.setItem(STORAGE_KEY,JSON.stringify(cols))}
+
+function renderCollectionChips(){
+  const cols=loadCollections();
+  const bar=document.getElementById('collectionsBar');
+  const empty=document.getElementById('collEmpty');
+  const chips=bar.querySelectorAll('.collection-chip');
+  chips.forEach(c=>c.remove());
+  const names=Object.keys(cols);
+  empty.style.display=names.length?'none':'inline';
+  names.forEach(name=>{
+    const chip=document.createElement('span');
+    chip.className='collection-chip'+(activeCollection===name?' active':'');
+    chip.innerHTML=`<i class="ti ti-bolt" style="font-size:12px"></i>${name}<button class="chip-del" onclick="deleteCollection(event,'${name}')" title="Delete">×</button>`;
+    chip.addEventListener('click',()=>loadCollection(name));
+    bar.appendChild(chip);
+  });
 }
 
-function parseCSV(text) {
-  const lines = text.trim().split(/\r?\n/);
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-  const data = lines.slice(1).map(line => {
-    const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-    const obj = {};
-    headers.forEach((h, i) => obj[h] = vals[i] || '');
-    return obj;
-  }).filter(r => Object.values(r).some(v => v));
-  return { headers, data };
+function openSaveModal(){
+  document.getElementById('collNameInput').value=activeCollection||'';
+  document.getElementById('saveModal').classList.add('open');
+  setTimeout(()=>document.getElementById('collNameInput').focus(),50);
+}
+function closeModal(){document.getElementById('saveModal').classList.remove('open')}
+
+function confirmSave(){
+  const name=document.getElementById('collNameInput').value.trim();
+  if(!name)return;
+  const cols=loadCollections();
+  cols[name]=captureState();
+  saveCollections(cols);
+  activeCollection=name;
+  renderCollectionChips();
+  closeModal();
 }
 
-function handleFile(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const { headers, data } = parseCSV(ev.target.result);
-    rows = data;
-    document.getElementById('colBatch').innerHTML = headers.map(h =>
-      `<option value="${h}"${h.toLowerCase().includes('batch') ? ' selected' : ''}>${h}</option>`).join('');
-    document.getElementById('colExpiry').innerHTML = headers.map(h =>
-      `<option value="${h}"${(h.toLowerCase().includes('expiry') || h.toLowerCase().includes('date')) ? ' selected' : ''}>${h}</option>`).join('');
-    document.getElementById('colMapSection').style.display = 'block';
-    const dz = document.getElementById('dropZone');
-    dz.classList.add('loaded');
-    document.getElementById('uploadIcon').className = 'ti ti-circle-check';
-    document.getElementById('uploadLabel').textContent = '✓ ' + file.name + '  —  ' + data.length + ' rows loaded';
+function deleteCollection(e,name){
+  e.stopPropagation();
+  if(!confirm(`Delete collection "${name}"?`))return;
+  const cols=loadCollections();
+  delete cols[name];
+  saveCollections(cols);
+  if(activeCollection===name)activeCollection=null;
+  renderCollectionChips();
+}
+
+function loadCollection(name){
+  const cols=loadCollections();
+  const state=cols[name];
+  if(!state)return;
+  activeCollection=name;
+  applyState(state);
+  renderCollectionChips();
+}
+
+// ── STATE CAPTURE / APPLY ─────────────────────────────
+function captureState(){
+  return{
+    testUrl:document.getElementById('testUrl').value,
+    prodUrl:document.getElementById('prodUrl').value,
+    authTab:currentAuthTab,
+    authUser:document.getElementById('auth-user').value,
+    authPass:document.getElementById('auth-pass').value,
+    authToken:document.getElementById('auth-token').value,
+    authKeyName:document.getElementById('auth-key-name').value,
+    authKeyVal:document.getElementById('auth-key-val').value,
+    steps:collectStepData()
+  };
+}
+
+function applyState(state){
+  document.getElementById('testUrl').value=state.testUrl||'';
+  document.getElementById('prodUrl').value=state.prodUrl||'';
+  syncEnvUrls();
+  // auth
+  const tab=state.authTab||'none';
+  const tabEl=document.getElementById('authTabs').querySelector(`.step-tab:nth-child(${['none','basic','bearer','apikey'].indexOf(tab)+1})`);
+  if(tabEl)switchAuthTab(tab,tabEl);
+  document.getElementById('auth-user').value=state.authUser||'';
+  document.getElementById('auth-pass').value=state.authPass||'';
+  document.getElementById('auth-token').value=state.authToken||'';
+  document.getElementById('auth-key-name').value=state.authKeyName||'';
+  document.getElementById('auth-key-val').value=state.authKeyVal||'';
+  // steps
+  clearAllSteps(true);
+  (state.steps||[]).forEach(s=>addStep(s));
+}
+
+function clearAllSteps(silent=false){
+  if(!silent&&document.getElementById('stepsList').children.length>0){
+    if(!confirm('Clear all steps?'))return;
+  }
+  document.getElementById('stepsList').innerHTML='';
+  stepCounter=0;
+  activeCollection=null;
+  renderCollectionChips();
+}
+
+// ── ENV ───────────────────────────────────────────────
+function syncEnvUrls(){
+  const t=document.getElementById('testUrl').value;
+  const p=document.getElementById('prodUrl').value;
+  try{document.getElementById('testUrlLabel').textContent=new URL(t).hostname}catch{document.getElementById('testUrlLabel').textContent=t||'—'}
+  try{document.getElementById('prodUrlLabel').textContent=new URL(p).hostname}catch{document.getElementById('prodUrlLabel').textContent=p||'—'}
+}
+function selectEnv(env){
+  currentEnv=env;
+  document.getElementById('btnTest').className='env-btn'+(env==='test'?' active-test':'');
+  document.getElementById('btnProd').className='env-btn'+(env==='prod'?' active-prod':'');
+  document.getElementById('prodWarning').className='prod-warning'+(env==='prod'?' show':'');
+  const pill=document.getElementById('envPill');
+  pill.textContent=env.toUpperCase();
+  pill.className='env-pill show-'+env;
+}
+
+// ── AUTH ──────────────────────────────────────────────
+function switchAuthTab(name,el){
+  currentAuthTab=name;
+  ['none','basic','bearer','apikey'].forEach(n=>document.getElementById('auth-'+n).classList.remove('active'));
+  document.getElementById('auth-'+name).classList.add('active');
+  document.getElementById('authTabs').querySelectorAll('.step-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+function buildAuthHeaders(){
+  const h={};
+  if(currentAuthTab==='basic'){
+    const u=document.getElementById('auth-user').value,p=document.getElementById('auth-pass').value;
+    if(u||p)h['Authorization']='Basic '+btoa(u+':'+p);
+  }else if(currentAuthTab==='bearer'){
+    const t=document.getElementById('auth-token').value;if(t)h['Authorization']='Bearer '+t;
+  }else if(currentAuthTab==='apikey'){
+    const n=document.getElementById('auth-key-name').value,v=document.getElementById('auth-key-val').value;
+    if(n&&v)h[n]=v;
+  }
+  return h;
+}
+
+// ── STEPS ─────────────────────────────────────────────
+function collectStepData(){
+  return Array.from(document.querySelectorAll('.step-card')).map(card=>{
+    const id=card.id;
+    const method=card.querySelector('select').value;
+    const path=document.getElementById(id+'-path').value;
+    const bodyText=document.getElementById(id+'-bodytext').value;
+    const ctype=document.getElementById(id+'-ctype').value;
+    const xpath=document.getElementById(id+'-xpath').value;
+    const xvar=document.getElementById(id+'-xvar').value;
+    const label=document.getElementById(id+'-label').textContent;
+    const headers={};
+    card.querySelectorAll(`#${id}-hlist .header-row`).forEach(row=>{
+      const[k,v]=row.querySelectorAll('input');if(k.value.trim())headers[k.value.trim()]=v.value.trim();
+    });
+    return{method,path,bodyText,ctype,xpath,xvar,label,headers};
+  });
+}
+
+function addStep(d={}){
+  const id='step-'+(++stepCounter);
+  const method=d.method||'GET';
+  const idx=document.getElementById('stepsList').children.length+1;
+  const label=d.label||('Step '+idx);
+  const div=document.createElement('div');
+  div.className='step-card';div.id=id;
+  div.innerHTML=`
+    <div class="step-header" onclick="toggleStep('${id}')">
+      <div class="step-num" id="${id}-num">${idx}</div>
+      <span class="method-badge method-${method}" id="${id}-badge">${method}</span>
+      <span class="step-label-text" id="${id}-label">${label}</span>
+      <div style="margin-right:auto;display:flex;gap:6px" onclick="event.stopPropagation()">
+        <button class="icon-btn danger" onclick="removeStep('${id}')"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>
+    <div class="step-body open" id="${id}-body">
+      <div class="field-group" style="margin-bottom:10px">
+        <label>Step Name</label>
+        <input type="text" value="${label}" oninput="document.getElementById('${id}-label').textContent=this.value"/>
+      </div>
+      <div class="step-row">
+        <div class="field-group" style="margin:0">
+          <label>Method</label>
+          <select onchange="updateBadge('${id}',this.value)">
+            ${['GET','POST','PATCH','PUT','DELETE'].map(m=>`<option${method===m?' selected':''}>${m}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field-group" style="margin:0">
+          <label>Path</label>
+          <input type="text" id="${id}-path" value="${(d.path||'').replace(/"/g,'&quot;')}" placeholder="/api/resource/{{id}}"/>
+        </div>
+      </div>
+      <div class="step-tabs" id="${id}-tabs">
+        <div class="step-tab active" onclick="switchStepTab('${id}','theaders',this)">Headers</div>
+        <div class="step-tab" onclick="switchStepTab('${id}','tbody',this)">Body</div>
+        <div class="step-tab" onclick="switchStepTab('${id}','textract',this)">Extract</div>
+      </div>
+      <div class="step-tab-panel active" id="${id}-theaders">
+        <div id="${id}-hlist"></div>
+        <button class="add-btn" onclick="addStepHeader('${id}')"><i class="ti ti-plus"></i> Add header</button>
+      </div>
+      <div class="step-tab-panel" id="${id}-tbody">
+        <div class="field-group" style="margin-bottom:8px">
+          <label>Content-Type</label>
+          <select id="${id}-ctype">
+            <option value="application/json"${(d.ctype||'')==='application/json'?' selected':''}>application/json</option>
+            <option value="application/x-www-form-urlencoded"${(d.ctype||'')==='application/x-www-form-urlencoded'?' selected':''}>form-urlencoded</option>
+            <option value="text/plain"${(d.ctype||'')==='text/plain'?' selected':''}>text/plain</option>
+          </select>
+        </div>
+        <textarea id="${id}-bodytext" placeholder='{"key": "{{csv_column}}"}'>${d.bodyText||d.body||''}</textarea>
+      </div>
+      <div class="step-tab-panel" id="${id}-textract">
+        <div class="extract-box">
+          <div class="section-title" style="margin-bottom:8px">Extract from Response</div>
+          <div class="extract-grid">
+            <div class="field-group" style="margin:0">
+              <label>JSON path</label>
+              <input type="text" id="${id}-xpath" value="${d.xpath||''}" placeholder="results[0].id"/>
+            </div>
+            <div class="field-group" style="margin:0">
+              <label>Save as variable</label>
+              <input type="text" id="${id}-xvar" value="${d.xvar||''}" placeholder="item_id"/>
+            </div>
+          </div>
+          <p class="var-hint" style="margin-top:8px">Then use <code>{{item_id}}</code> in next steps</p>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('stepsList').appendChild(div);
+  if(d.headers)Object.entries(d.headers).forEach(([k,v])=>addStepHeader(id,k,v));
+  renumber();
+}
+
+function removeStep(id){document.getElementById(id).remove();renumber()}
+function renumber(){document.querySelectorAll('.step-num').forEach((el,i)=>el.textContent=i+1)}
+function toggleStep(id){document.getElementById(id+'-body').classList.toggle('open')}
+function updateBadge(id,val){const b=document.getElementById(id+'-badge');b.textContent=val;b.className='method-badge method-'+val}
+function switchStepTab(sid,name,el){
+  ['theaders','tbody','textract'].forEach(n=>{const p=document.getElementById(sid+'-'+n);if(p)p.classList.remove('active')});
+  document.getElementById(sid+'-'+name).classList.add('active');
+  document.getElementById(sid+'-tabs').querySelectorAll('.step-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+function addStepHeader(sid,k='',v=''){
+  const list=document.getElementById(sid+'-hlist');
+  const row=document.createElement('div');row.className='header-row';
+  row.innerHTML=`<input type="text" placeholder="Header name" value="${k}"/><input type="text" placeholder="Value" value="${v}"/><button class="icon-btn" onclick="this.parentElement.remove()"><i class="ti ti-x"></i></button>`;
+  list.appendChild(row);
+}
+
+// ── CSV ───────────────────────────────────────────────
+function handleCSV(e){
+  const file=e.target.files[0];if(!file)return;
+  Papa.parse(file,{header:true,skipEmptyLines:true,complete:res=>{
+    csvRows=res.data;csvHeaders=res.meta.fields||[];
+    document.getElementById('csvInfo').textContent=csvRows.length+' rows';
+    document.getElementById('csvCols').textContent=csvHeaders.join(', ');
     renderPreview();
-    checkRunReady();
-  };
-  reader.readAsText(file);
+    document.getElementById('dropZone').classList.add('loaded');
+    document.getElementById('uploadIcon').className='ti ti-circle-check';
+    document.getElementById('uploadLabel').textContent='✓ '+file.name+'  —  '+csvRows.length+' rows';
+  }});
+}
+function renderPreview(){
+  const t=document.getElementById('previewTable');
+  t.innerHTML='<thead><tr>'+csvHeaders.map(h=>`<th>${h}</th>`).join('')+'<th>Status</th></tr></thead><tbody>'+
+    csvRows.slice(0,5).map((r,i)=>'<tr>'+csvHeaders.map(h=>`<td title="${r[h]||''}">${r[h]||'–'}</td>`).join('')+
+      `<td><span class="badge badge-pending" id="row-status-${i}">Pending</span></td></tr>`).join('')+
+    (csvRows.length>5?`<tr><td colspan="${csvHeaders.length+1}" style="text-align:center;color:var(--se-gray-600);font-size:11px;padding:8px">…and ${csvRows.length-5} more</td></tr>`:'')+
+    '</tbody>';
+  document.getElementById('csvPreview').style.display='block';
 }
 
-['colBatch','colExpiry','dateFormat'].forEach(id =>
-  document.getElementById(id).addEventListener('change', renderPreview)
-);
-
-function formatDate(raw, fmt) {
-  if (fmt === 'raw') return raw;
-  const d = new Date(raw);
-  if (isNaN(d)) return raw;
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const dd = String(d.getDate()).padStart(2,'0');
-  if (fmt === 'YYYY-MM-DD') return `${yyyy}-${mm}-${dd}`;
-  if (fmt === 'MM/DD/YYYY') return `${mm}/${dd}/${yyyy}`;
-  if (fmt === 'DD/MM/YYYY') return `${dd}/${mm}/${yyyy}`;
-  return raw;
+// ── UTILS ─────────────────────────────────────────────
+function interpolate(str,csvRow,chain){
+  return str.replace(/\{\{([^}]+)\}\}/g,(_,k)=>{
+    const key=k.trim();
+    if(chain[key]!==undefined)return chain[key];
+    if(csvRow[key]!==undefined)return csvRow[key];
+    return'';
+  });
+}
+function getNestedVal(obj,path){
+  if(!path)return undefined;
+  try{return path.split(/[\.\[\]]+/).filter(Boolean).reduce((o,k)=>o!=null?o[k]:undefined,obj)}catch{return undefined}
 }
 
-function renderPreview() {
-  const colB = document.getElementById('colBatch').value;
-  const colE = document.getElementById('colExpiry').value;
-  const fmt  = document.getElementById('dateFormat').value;
-  const preview = rows.slice(0, 10);
-  document.getElementById('previewBody').innerHTML = preview.map((r,i) =>
-    `<tr id="row-${i}">
-      <td>${r[colB]||'–'}</td>
-      <td>${formatDate(r[colE]||'–', fmt)}</td>
-      <td><span class="badge badge-pending" id="status-${i}">Pending</span></td>
-    </tr>`
-  ).join('') + (rows.length > 10
-    ? `<tr><td colspan="3" style="text-align:center;color:var(--se-gray-600);font-size:12px;padding:10px">…and ${rows.length-10} more rows</td></tr>`
-    : '');
-  document.getElementById('rowCount').textContent = rows.length + ' rows';
-  document.getElementById('previewCard').style.display = 'block';
+// ── RUN ───────────────────────────────────────────────
+function log(msg,type=''){
+  const ts=new Date().toLocaleTimeString('en-GB');logLines.push({ts,msg,type});
+  const el=document.getElementById('logArea');
+  const div=document.createElement('div');if(type)div.className='log-'+type;
+  div.textContent=`[${ts}] ${msg}`;el.appendChild(div);el.scrollTop=el.scrollHeight;
+}
+function updateStats(total,ok,err){
+  document.getElementById('statTotal').textContent=total;
+  document.getElementById('statOk').textContent=ok;
+  document.getElementById('statErr').textContent=err;
+  document.getElementById('statLeft').textContent=total-ok-err;
+  document.getElementById('progressFill').style.width=total?Math.round(((ok+err)/total)*100)+'%':'0%';
+  document.getElementById('progressText').textContent=(ok+err)+' / '+total;
+}
+function setRowStatus(i,status){
+  const el=document.getElementById('row-status-'+i);if(!el)return;
+  const map={pending:['badge-pending','Pending'],loading:['badge-loading','Running…'],success:['badge-success','✓ Success'],error:['badge-error','✗ Error']};
+  const[cls,text]=map[status]||map.pending;el.className='badge '+cls;el.textContent=text;
 }
 
-function checkRunReady() {
-  document.getElementById('runBtn').disabled = !(currentEnv && rows.length > 0);
-}
-
-function log(msg, type='') {
-  const ts = new Date().toLocaleTimeString('en-GB');
-  logLines.push({ts, msg, type});
-  const el = document.getElementById('logArea');
-  const div = document.createElement('div');
-  if (type) div.className = 'log-'+type;
-  div.textContent = `[${ts}] ${msg}`;
-  el.appendChild(div);
-  el.scrollTop = el.scrollHeight;
-}
-
-function updateStats(total, ok, err) {
-  document.getElementById('statTotal').textContent = total;
-  document.getElementById('statOk').textContent = ok;
-  document.getElementById('statErr').textContent = err;
-  document.getElementById('statLeft').textContent = total - ok - err;
-  document.getElementById('progressFill').style.width = total ? Math.round(((ok+err)/total)*100)+'%' : '0%';
-  document.getElementById('progressText').textContent = (ok+err) + ' / ' + total;
-}
-
-function setRowStatus(i, status) {
-  const el = document.getElementById('status-'+i);
-  if (!el) return;
-  const map = {
-    pending: ['badge-pending','Pending'],
-    loading: ['badge-loading','Updating…'],
-    success: ['badge-success','✓ Success'],
-    error:   ['badge-error','✗ Error']
-  };
-  const [cls, text] = map[status]||map.pending;
-  el.className = 'badge '+cls;
-  el.textContent = text;
-}
-
-async function runUpdate() {
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value.trim();
-  const baseUrl  = document.getElementById('baseUrl').value.trim();
-  const colB = document.getElementById('colBatch').value;
-  const colE = document.getElementById('colExpiry').value;
-  const fmt  = document.getElementById('dateFormat').value;
-
-  if (!username || !password) { alert('Please enter username and password.'); return; }
-  if (!rows.length) { alert('Please load a CSV file first.'); return; }
-  if (currentEnv === 'prod') {
-    if (!confirm(`⚠️ PRODUCTION UPDATE\n\nYou are about to update ${rows.length} record(s) in PRODUCTION.\nThis action is irreversible. Continue?`)) return;
-  }
-
-  stopFlag = false; logLines = [];
-  document.getElementById('logArea').innerHTML = '';
-  document.getElementById('resultsCard').style.display = 'block';
-  document.getElementById('runBtn').disabled = true;
-  document.getElementById('stopBtn').style.display = 'inline-flex';
-  updateStats(rows.length, 0, 0);
-
-  const authHeader = 'Basic ' + btoa(username+':'+password);
-  let ok = 0, err = 0;
-  log(`Starting — ${rows.length} rows on ${currentEnv.toUpperCase()}`, 'info');
-
-  for (let i = 0; i < rows.length; i++) {
-    if (stopFlag) { log('Stopped by user.', 'info'); break; }
-    const batch_nbr   = rows[i][colB];
-    const expiry_date = formatDate(rows[i][colE], fmt);
-    setRowStatus(i, 'loading');
-    log(`[${i+1}/${rows.length}] GET batch_id for: ${batch_nbr}`);
-    try {
-      const getRes = await fetch(
-        `${baseUrl}/entity/batch_number?values_list=id:batch_id&batch_nbr=${encodeURIComponent(batch_nbr)}`,
-        { headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' } }
-      );
-      if (!getRes.ok) throw new Error(`GET failed: HTTP ${getRes.status}`);
-      const getData = await getRes.json();
-      const batch_id = getData?.results?.[0]?.batch_id || getData?.batch_id;
-      if (!batch_id) throw new Error('batch_id not found in response');
-      log(`  batch_id=${batch_id} → PATCH expiry_date=${expiry_date}`);
-      const patchRes = await fetch(`${baseUrl}/entity/batch_number/${batch_id}`, {
-        method: 'PATCH',
-        headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields: { expiry_date } })
-      });
-      if (!patchRes.ok) throw new Error(`PATCH failed: HTTP ${patchRes.status}`);
-      log(`  ✓ Updated successfully`, 'success');
-      setRowStatus(i, 'success'); ok++;
-    } catch(e) {
-      log(`  ✗ Error: ${e.message}`, 'error');
-      setRowStatus(i, 'error'); err++;
+async function runAll(){
+  const steps=collectStepData();
+  if(!steps.length){alert('Add at least one step.');return}
+  const baseUrl=(currentEnv==='prod'?document.getElementById('prodUrl').value:document.getElementById('testUrl').value).trim();
+  if(!baseUrl){alert('Enter a Base URL.');return}
+  const delay=parseInt(document.getElementById('delay').value)||200;
+  const rows=csvRows.length?csvRows:[{}];
+  if(currentEnv==='prod'){if(!confirm(`⚠️ PRODUCTION\n\n${rows.length} row(s) × ${steps.length} step(s). Continue?`))return}
+  stopFlag=false;logLines=[];resultRows=[];errorRows=[];
+  document.getElementById('logArea').innerHTML='';
+  document.getElementById('resultsCard').style.display='block';
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('stopBtn').style.display='inline-flex';
+  updateStats(rows.length,0,0);
+  const authHeaders=buildAuthHeaders();
+  let ok=0,err=0;
+  log(`Starting — ${rows.length} rows × ${steps.length} steps [${(currentEnv||'custom').toUpperCase()}]`,'info');
+  for(let i=0;i<rows.length;i++){
+    if(stopFlag){log('Stopped by user.','info');break}
+    const csvRow=rows[i];const chain={};
+    setRowStatus(i,'loading');log(`── Row ${i+1}/${rows.length} ──`,'step');
+    let rowFailed=false;
+    for(let s=0;s<steps.length;s++){
+      if(stopFlag)break;
+      const step=steps[s];
+      const url=baseUrl+interpolate(step.path,csvRow,chain);
+      const headers={...authHeaders};
+      Object.entries(step.headers).forEach(([k,v])=>{headers[k]=interpolate(v,csvRow,chain)});
+      const bodyRaw=step.bodyText?interpolate(step.bodyText,csvRow,chain):undefined;
+      if(bodyRaw)headers['Content-Type']=step.ctype||'application/json';
+      log(`  [${s+1}] ${step.label} → ${step.method} ${url}`);
+      try{
+        const opts={method:step.method,headers};
+        if(bodyRaw&&step.method!=='GET'&&step.method!=='DELETE')opts.body=bodyRaw;
+        const res=await fetch(url,opts);
+        const text=await res.text();
+        let parsed=null;try{parsed=JSON.parse(text)}catch{}
+        if(res.ok){
+          log(`     ✓ ${res.status}`,'success');
+          // store last step response for CSV export
+          if(s===steps.length-1){
+            if(parsed&&parsed.results&&Array.isArray(parsed.results)){
+              parsed.results.forEach(r=>resultRows.push({...csvRow,...r}));
+            }else if(parsed){
+              resultRows.push({...csvRow,...(typeof parsed==='object'?parsed:{response:text})});
+            }
+          }
+          if(step.xpath&&step.xvar&&parsed){
+            const val=getNestedVal(parsed,step.xpath);
+            if(val!==undefined){chain[step.xvar]=val;log(`     extract: ${step.xvar} = ${val}`,'info')}
+            else log(`     extract: "${step.xpath}" not found`,'info');
+          }
+        }else{log(`     ✗ ${res.status}: ${text.slice(0,160)}`,'error');rowFailed=true;break}
+      }catch(e){log(`     ✗ ${e.message}`,'error');rowFailed=true;break}
     }
-    updateStats(rows.length, ok, err);
-    await new Promise(r => setTimeout(r, 120));
+    if(rowFailed){
+      setRowStatus(i,'error');err++;
+      errorRows.push({...csvRow,_error:'failed',_step_failed:steps.filter((_,si)=>si<steps.length).map(s=>s.label).join(' > ')});
+    }else{setRowStatus(i,'success');ok++}
+    updateStats(rows.length,ok,err);
+    if(i<rows.length-1&&!stopFlag)await new Promise(r=>setTimeout(r,delay));
   }
-
-  document.getElementById('runBtn').disabled = false;
-  document.getElementById('stopBtn').style.display = 'none';
-  log(`Completed: ${ok} success, ${err} errors.`, ok===rows.length?'success':'info');
+  document.getElementById('runBtn').disabled=false;
+  document.getElementById('stopBtn').style.display='none';
+  log(`Completed: ${ok} success, ${err} errors.`,ok===rows.length?'success':'info');
+}
+function stopRun(){stopFlag=true}
+function exportCSV(){
+  if(!resultRows.length&&!errorRows.length){alert('No results to export.');return}
+  const escape=v=>{
+    if(v===null||v===undefined)return'';
+    const s=typeof v==='object'?JSON.stringify(v):String(v);
+    return s.includes(',')||s.includes('"')||s.includes('\n')?'"'+s.replace(/"/g,'""')+'"':s;
+  };
+  const buildCSV=rows=>{
+    if(!rows.length)return'';
+    const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))];
+    return[keys.join(','),...rows.map(r=>keys.map(k=>escape(r[k])).join(','))].join('\n');
+  };
+  const date=new Date().toISOString().slice(0,10);
+  const env=currentEnv||'custom';
+  // success CSV
+  if(resultRows.length){
+    const blob=new Blob([buildCSV(resultRows)],{type:'text/csv'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`results_${env}_${date}.csv`;
+    a.click();
+  }
+  // errors CSV
+  if(errorRows.length){
+    setTimeout(()=>{
+      const blob=new Blob([buildCSV(errorRows)],{type:'text/csv'});
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download=`errors_${env}_${date}.csv`;
+      a.click();
+    },500);
+  }
+}
+function exportLog(){
+  const blob=new Blob([logLines.map(l=>`[${l.ts}] ${l.msg}`).join('\n')],{type:'text/plain'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`api_runner_${currentEnv||'custom'}_${new Date().toISOString().slice(0,10)}.txt`;a.click();
 }
 
-function stopRun() { stopFlag = true; }
+// ── INIT ──────────────────────────────────────────────
+const BUILTIN_COLLECTIONS={
+  'WMS — Expiry Date Update':{
+    testUrl:'https://tc4.wms.ocs.oraclecloud.com:443/solaredge_test/wms/lgfapi/v10',
+    prodUrl:'https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10',
+    authTab:'basic',authUser:'',authPass:'',authToken:'',authKeyName:'',authKeyVal:'',
+    steps:[
+      {label:'GET batch_id',method:'GET',path:'/entity/batch_number?values_list=id:batch_id&batch_nbr={{batch_nbr}}',bodyText:'',ctype:'application/json',xpath:'results[0].batch_id',xvar:'batch_id',headers:{}},
+      {label:'PATCH expiry_date',method:'PATCH',path:'/entity/batch_number/{{batch_id}}',bodyText:'{\n  "fields": {\n    "expiry_date": "{{expiry_date}}"\n  }\n}',ctype:'application/json',xpath:'',xvar:'',headers:{}}
+    ]
+  },
+  'WMS — Serial Location Lookup':{
+    testUrl:'https://tc4.wms.ocs.oraclecloud.com:443/solaredge_test/wms/lgfapi/v10',
+    prodUrl:'https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10',
+    authTab:'basic',authUser:'',authPass:'',authToken:'',authKeyName:'',authKeyVal:'',
+    steps:[
+      {label:'GET serial → LPN + Location',method:'GET',path:'/entity/serial_nbr_inventory?values_list=serial_nbr_id__serial_nbr:serial_nbr,inventory_id__container_id__container_nbr:lpn_nbr,inventory_id__container_id__curr_location_id__barcode:locn,inventory_id__container_id__status_id:status&serial_nbr_id__serial_nbr__in={{serial_nbr}}&inventory_id__container_id__status_id__in=10,30,40,50',bodyText:'',ctype:'application/json',xpath:'',xvar:'',headers:{}}
+    ]
+  }
+};
 
-function exportLog() {
-  const blob = new Blob([logLines.map(l=>`[${l.ts}] ${l.msg}`).join('\n')], {type:'text/plain'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `wms_update_log_${currentEnv}_${new Date().toISOString().slice(0,10)}.txt`;
-  a.click();
-}
+window.onload=()=>{
+  // seed built-in collections if not already saved
+  const existing=loadCollections();
+  let changed=false;
+  Object.entries(BUILTIN_COLLECTIONS).forEach(([name,state])=>{
+    existing[name]=state;changed=true;
+  });
+  if(changed)saveCollections(existing);
+
+  document.getElementById('testUrl').value='https://tc4.wms.ocs.oraclecloud.com:443/solaredge_test/wms/lgfapi/v10';
+  document.getElementById('prodUrl').value='https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10';
+  syncEnvUrls();
+  renderCollectionChips();
+
+  // load Direct collection as default view
+  loadCollection('WMS — Serial Location Lookup');
+};
 </script>
 </body>
 </html>
