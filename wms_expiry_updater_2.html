@@ -846,6 +846,14 @@ function exportLog(){
 
 // ── INIT ──────────────────────────────────────────────
 const BUILTIN_COLLECTIONS={
+  'WMS — Bulk Locate LPN':{
+    testUrl:'https://tc4.wms.ocs.oraclecloud.com:443/solaredge_test/wms/lgfapi/v10',
+    prodUrl:'https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10',
+    authTab:'basic',authUser:'',authPass:'',authToken:'',authKeyName:'',authKeyVal:'',
+    steps:[
+      {label:'POST bulk locate',method:'POST',path:'/entity/iblpn/bulk_locate/',bodyText:'{\n  "parameters": {\n    "container_nbr__in": ["{{LPN}}"]\n  },\n  "options": {\n    "location_barcode": "{{Location}}",\n    "depalletize_on_putaway_flg": false\n  }\n}',ctype:'application/json',xpath:'',xvar:'',headers:{},pollPath:'',pollDone:'',pollInterval:3000,pollTimeout:120000}
+    ]
+  },
   'Fusion — Schedule Line':{
     testUrl:'https://fa-evzi-test-saasfaprod1.fa.ocs.oraclecloud.com:443',
     prodUrl:'https://fa-evzi-prod-saasfaprod1.fa.ocs.oraclecloud.com:443',
