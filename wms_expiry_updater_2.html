@@ -568,6 +568,11 @@ function addStep(d={}){
           </select>
         </div>
         <textarea id="${id}-bodytext" placeholder='{"key": "{{csv_column}}"}'>${d.bodyText||d.body||''}</textarea>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <button class="add-btn" onclick="previewBody('${id}')" style="color:var(--se-gray-600)"><i class="ti ti-eye"></i> Preview Body</button>
+          <span style="font-size:11px;color:var(--se-gray-600)" id="${id}-preview-hint"></span>
+        </div>
+        <pre id="${id}-body-preview" style="display:none;margin-top:8px;background:var(--se-gray-100);border-radius:8px;padding:10px 14px;font-size:12px;font-family:'SF Mono',monospace;overflow-x:auto;white-space:pre-wrap;color:var(--se-black);border:0.5px solid var(--se-gray-200)"></pre>
       </div>
       <div class="step-tab-panel" id="${id}-textract">
         <div class="extract-box">
@@ -648,12 +653,29 @@ function renderPreview(){
 }
 
 // ── UTILS ─────────────────────────────────────────────
+function toJsonArray(val){
+  if(typeof val!=='string')return val;
+  if(val.startsWith('['))return val;
+  return JSON.stringify(val.split(',').map(s=>s.trim()).filter(Boolean));
+}
 function interpolate(str,csvRow,chain){
-  return str.replace(/\{\{([^}]+)\}\}/g,(_,k)=>{
+  // First pass: handle unquoted {{key}} placements (raw JSON values like arrays)
+  // Detect pattern: the placeholder is NOT surrounded by quotes in the template
+  return str.replace(/(["']?)\{\{([^}]+)\}\}(["']?)/g,(match,before,k,after)=>{
     const key=k.trim();
-    if(chain[key]!==undefined)return chain[key];
-    if(csvRow[key]!==undefined)return csvRow[key];
-    return'';
+    let val;
+    if(chain[key]!==undefined)val=chain[key];
+    else if(csvRow[key]!==undefined)val=csvRow[key];
+    else return match;
+    // if no surrounding quotes → raw JSON placement → convert to array if comma-separated
+    if(!before&&!after&&typeof val==='string'){
+      return toJsonArray(val);
+    }
+    // if key ends with _list → always convert
+    if(key.endsWith('_list')&&typeof val==='string'){
+      return (before||'')+toJsonArray(val)+(after||'');
+    }
+    return (before||'')+val+(after||'');
   });
 }
 function getNestedVal(obj,path){
@@ -805,6 +827,23 @@ async function runAll(){
   log(`Completed: ${ok} success, ${err} errors.`,ok===rows.length?'success':'info');
 }
 function stopRun(){stopFlag=true}
+function previewBody(stepId){
+  const bodyRaw=document.getElementById(stepId+'-bodytext').value.trim();
+  if(!bodyRaw){alert('No body defined for this step.');return}
+  const previewEl=document.getElementById(stepId+'-body-preview');
+  const hintEl=document.getElementById(stepId+'-preview-hint');
+  // use first CSV row if available, otherwise empty
+  const csvRow=csvRows.length?csvRows[0]:{};
+  const chain={};
+  const interpolated=interpolate(bodyRaw,csvRow,chain);
+  // try to pretty-print JSON
+  let display=interpolated;
+  try{display=JSON.stringify(JSON.parse(interpolated),null,2)}catch{}
+  previewEl.textContent=display;
+  previewEl.style.display='block';
+  hintEl.textContent=csvRows.length?'using row 1 of CSV ('+Object.keys(csvRow).join(', ')+')':
+'(no CSV loaded — showing template)';
+}
 function exportCSV(){
   if(!resultRows.length&&!errorRows.length){alert('No results to export.');return}
   const escape=v=>{
@@ -846,6 +885,14 @@ function exportLog(){
 
 // ── INIT ──────────────────────────────────────────────
 const BUILTIN_COLLECTIONS={
+  'WMS — CC Confirm Count LPN':{
+    testUrl:'https://tc4.wms.ocs.oraclecloud.com:443/solaredge_test/wms/lgfapi/v10',
+    prodUrl:'https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10',
+    authTab:'basic',authUser:'',authPass:'',authToken:'',authKeyName:'',authKeyVal:'',
+    steps:[
+      {label:'POST cc_confirm_count_lpn_scan',method:'POST',path:'/entity/location/cc_confirm_count_lpn_scan',bodyText:'{\n  "parameters": {\n    "facility_id__code": "{{Facility}}",\n    "barcode": "{{Location}}"\n  },\n  "options": {\n    "lpn_nbr_list": {{LPN Nbr}},\n    "validate_only_flg": "N",\n    "deferred_mode_flg": "Y"\n  }\n}',ctype:'application/json',xpath:'',xvar:'',headers:{},pollPath:'',pollDone:'',pollInterval:3000,pollTimeout:120000}
+    ]
+  },
   'WMS — Bulk Locate LPN':{
     testUrl:'https://tc4.wms.ocs.oraclecloud.com:443/solaredge_test/wms/lgfapi/v10',
     prodUrl:'https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10',
