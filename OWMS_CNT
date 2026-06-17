@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Count Confirmation — SolarEdge WMS</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.0.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0f1923;
+  --ink-mid:#4a5568;
+  --ink-light:#8a9ab0;
+  --surface:#f7f9fc;
+  --white:#ffffff;
+  --border:#dde3ec;
+  --red:#da2128;
+  --red-dark:#b01a20;
+  --red-glow:rgba(218,33,40,0.12);
+  --green:#1a7f3c;
+  --green-bg:#edf7f1;
+  --amber:#b45309;
+  --amber-bg:#fef3cd;
+  --blue:#1a56a0;
+  --blue-bg:#e8f0fb;
+  --radius:10px;
+  --shadow:0 2px 12px rgba(15,25,35,0.08),0 1px 3px rgba(15,25,35,0.06);
+  --shadow-lg:0 8px 32px rgba(15,25,35,0.14),0 2px 8px rgba(15,25,35,0.08);
+}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  color:var(--ink);
+  min-height:100vh;
+  padding:0;
+  background-color:#1a2a3a;
+  background-image:linear-gradient(to bottom,rgba(10,20,35,0.65),rgba(10,20,35,0.58)),
+    url('https://images.unsplash.com/photo-1509391366360-2e959784a276?w=1600&q=80&auto=format&fit=crop');
+  background-size:cover;background-position:center;background-attachment:fixed;
+}
+
+/* ── HEADER ── */
+.header{
+  background:var(--ink);
+  padding:0 2rem;
+  height:52px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  position:sticky;top:0;z-index:50;
+}
+.logo{display:flex;align-items:center;gap:0;user-select:none}
+.logo-solar{font-size:18px;font-weight:700;color:#fff;letter-spacing:-0.3px;font-family:Arial,sans-serif}
+.logo-edge{font-size:18px;font-weight:700;color:#fff;background:var(--red);padding:1px 5px 2px;border-radius:2px;font-family:Arial,sans-serif;letter-spacing:-0.3px}
+.header-right{display:flex;align-items:center;gap:10px}
+.env-tag{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.06em;display:none}
+.env-tag.test{display:inline-block;background:#e67e22;color:#fff}
+.env-tag.prod{display:inline-block;background:var(--red);color:#fff}
+.header-label{font-size:12px;color:rgba(255,255,255,0.4);letter-spacing:.04em}
+
+/* ── PAGE ── */
+.page{max-width:620px;margin:0 auto;padding:2rem 1rem 4rem}
+
+/* ── SECTION TITLE ── */
+.step-label{
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:14px;
+}
+.step-dot{
+  width:24px;height:24px;border-radius:50%;
+  background:var(--ink);color:#fff;
+  font-size:11px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.step-dot.done{background:var(--green)}
+.step-dot.active{background:var(--red)}
+.step-title{font-size:13px;font-weight:600;color:var(--ink)}
+
+/* ── CARD ── */
+.card{
+  background:rgba(255,255,255,0.97);
+  border:none;
+  border-radius:var(--radius);
+  padding:1.25rem 1.5rem;
+  margin-bottom:1rem;
+  box-shadow:0 4px 24px rgba(0,0,0,0.18),0 1px 4px rgba(0,0,0,0.10);
+}
+.card.locked{opacity:.5;pointer-events:none}
+
+/* ── ENV SELECTOR ── */
+.env-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.env-btn{
+  padding:12px 16px;border-radius:8px;
+  border:1.5px solid var(--border);
+  background:var(--white);cursor:pointer;
+  display:flex;align-items:center;gap:10px;
+  transition:all .15s;text-align:left;
+}
+.env-btn:hover{border-color:#aab4c2;background:var(--surface)}
+.env-btn.active-test{border-color:#e67e22;background:#fef5ec}
+.env-btn.active-prod{border-color:var(--red);background:#fdf0f0}
+.env-dot{width:9px;height:9px;border-radius:50%}
+.env-dot.t{background:#e67e22}.env-dot.p{background:var(--red)}
+.env-info .name{font-size:13px;font-weight:600;color:var(--ink)}
+.env-info .sub{font-size:11px;color:var(--ink-light);margin-top:1px}
+.prod-warn{
+  display:none;align-items:center;gap:8px;
+  background:#fdf0f0;border:0.5px solid #f5a0a3;
+  border-radius:8px;padding:9px 12px;
+  margin-top:10px;font-size:12px;color:#a32d2d;
+}
+.prod-warn.show{display:flex}
+
+/* ── FORM ── */
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.field label{font-size:12px;font-weight:600;color:var(--ink-mid)}
+.field input{
+  border:0.5px solid var(--border);border-radius:8px;
+  padding:8px 10px;font-size:13px;
+  background:var(--white);color:var(--ink);
+  width:100%;font-family:inherit;
+  transition:border-color .15s,box-shadow .15s;
+}
+.field input:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 2px var(--red-glow)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ── UPLOAD ── */
+.upload{
+  border:1.5px dashed var(--border);border-radius:8px;
+  padding:1.25rem;text-align:center;cursor:pointer;
+  transition:all .15s;
+}
+.upload:hover{border-color:var(--red);background:var(--red-glow)}
+.upload.loaded{border-color:var(--green);border-style:solid;background:var(--green-bg)}
+.upload i{font-size:26px;color:var(--ink-light);display:block;margin-bottom:4px;transition:color .15s}
+.upload:hover i{color:var(--red)}
+.upload.loaded i{color:var(--green)}
+.upload p{font-size:13px;color:var(--ink-mid)}
+.upload p.sub{font-size:11px;color:var(--ink-light);margin-top:2px}
+.csv-info{
+  margin-top:10px;padding:8px 12px;
+  background:var(--surface);border-radius:6px;
+  font-size:12px;color:var(--ink-mid);
+  display:none;
+}
+.csv-info span{font-weight:600;color:var(--ink)}
+
+/* ── RUN BUTTON ── */
+.run-btn{
+  width:100%;padding:13px;
+  background:var(--red);color:#fff;
+  border:none;border-radius:8px;
+  font-size:15px;font-weight:700;
+  cursor:pointer;display:flex;
+  align-items:center;justify-content:center;gap:10px;
+  transition:background .15s,transform .1s;
+  box-shadow:0 2px 10px rgba(218,33,40,0.3);
+}
+.run-btn:hover{background:var(--red-dark)}
+.run-btn:active{transform:scale(.98)}
+.run-btn:disabled{background:#b0aeaa;box-shadow:none;cursor:not-allowed}
+.stop-btn{
+  width:100%;padding:12px;
+  background:var(--white);color:#a32d2d;
+  border:0.5px solid #f5a0a3;border-radius:8px;
+  font-size:14px;font-weight:600;
+  cursor:pointer;display:none;
+  align-items:center;justify-content:center;gap:8px;
+  margin-top:8px;transition:background .15s;
+}
+.stop-btn:hover{background:#fdf0f0}
+.stop-btn.show{display:flex}
+
+/* ── RESULTS ── */
+.results-card{display:none}
+.results-card.show{display:block}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.stat{background:var(--surface);border-radius:8px;padding:10px 14px}
+.stat-label{font-size:11px;font-weight:600;color:var(--ink-light);text-transform:uppercase;letter-spacing:.05em}
+.stat-val{font-size:26px;font-weight:700;margin-top:2px;line-height:1}
+.stat-val.green{color:var(--green)}
+.stat-val.red{color:#a32d2d}
+.progress-wrap{margin-bottom:14px}
+.progress-bar{height:5px;background:var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px}
+.progress-fill{height:100%;background:var(--red);border-radius:4px;transition:width .3s}
+.progress-label{font-size:11px;color:var(--ink-light);text-align:right}
+.log{
+  font-family:'SF Mono','Fira Mono',monospace;
+  font-size:11.5px;max-height:200px;overflow-y:auto;
+  background:var(--ink);color:#a8c0d6;
+  border-radius:8px;padding:10px 14px;
+  line-height:1.7;
+}
+.log .ok{color:#4ade80}
+.log .err{color:#f87171}
+.log .inf{color:#60a5fa}
+.log .row{color:#94a3b8;font-weight:600}
+.export-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.exp-btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;background:var(--white);
+  border:0.5px solid var(--border);border-radius:8px;
+  font-size:12px;cursor:pointer;color:var(--ink);
+  transition:background .15s;
+}
+.exp-btn:hover{background:var(--surface)}
+
+@media(max-width:480px){
+  .grid2,.env-row,.stats{grid-template-columns:1fr}
+  .header-label{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <span class="logo-solar">solar</span><span class="logo-edge">edge</span>
+  </div>
+  <div class="header-right">
+    <span class="header-label">Inventory Count Confirmation</span>
+    <span class="env-tag" id="envTag"></span>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- STEP 1: ENV -->
+  <div class="card" id="card-env">
+    <div class="step-label">
+      <div class="step-dot active" id="dot-1">1</div>
+      <span class="step-title">Select Environment</span>
+    </div>
+    <div class="env-row">
+      <button class="env-btn" id="btnTest" onclick="selectEnv('test')">
+        <div class="env-dot t"></div>
+        <div class="env-info">
+          <div class="name">Test</div>
+          <div class="sub">tc4.wms.ocs.oraclecloud.com</div>
+        </div>
+      </button>
+      <button class="env-btn" id="btnProd" onclick="selectEnv('prod')">
+        <div class="env-dot p"></div>
+        <div class="env-info">
+          <div class="name">Production</div>
+          <div class="sub">c4.wms.ocs.oraclecloud.com</div>
+        </div>
+      </button>
+    </div>
+    <div class="prod-warn" id="prodWarn">
+      <i class="ti ti-alert-triangle" style="font-size:15px;flex-shrink:0"></i>
+      <span>You are about to run on <strong>Production</strong>. Changes are live and irreversible.</span>
+    </div>
+  </div>
+
+  <!-- STEP 2: AUTH -->
+  <div class="card" id="card-auth">
+    <div class="step-label">
+      <div class="step-dot" id="dot-2">2</div>
+      <span class="step-title">Credentials</span>
+    </div>
+    <div class="grid2">
+      <div class="field" style="margin:0"><label>Username</label><input type="text" id="username" placeholder="WMS username" oninput="checkReady()"/></div>
+      <div class="field" style="margin:0"><label>Password</label><input type="password" id="password" placeholder="WMS password" oninput="checkReady()"/></div>
+    </div>
+  </div>
+
+  <!-- STEP 3: CSV -->
+  <div class="card" id="card-csv">
+    <div class="step-label">
+      <div class="step-dot" id="dot-3">3</div>
+      <span class="step-title">Upload CSV</span>
+    </div>
+    <div class="upload" id="dropZone" onclick="document.getElementById('csvFile').click()">
+      <i class="ti ti-file-spreadsheet" id="uploadIcon"></i>
+      <p id="uploadLabel">Click to upload CSV</p>
+      <p class="sub">Required columns: Facility, Location, LPN Nbr</p>
+      <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="handleCSV(event)"/>
+    </div>
+    <div class="csv-info" id="csvInfo">
+      <span id="csvInfoText"></span>
+    </div>
+  </div>
+
+  <!-- RUN -->
+  <button class="run-btn" id="runBtn" onclick="runAll()" disabled>
+    <i class="ti ti-player-play"></i> Confirm Count
+  </button>
+  <button class="stop-btn" id="stopBtn" onclick="stopRun()">
+    <i class="ti ti-player-stop"></i> Stop
+  </button>
+
+  <!-- RESULTS -->
+  <div class="card results-card" id="resultsCard" style="margin-top:1rem;background:rgba(255,255,255,0.97);box-shadow:0 4px 24px rgba(0,0,0,0.18)">
+    <div class="progress-wrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <div class="progress-label" id="progressLabel">0 / 0</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Total</div><div class="stat-val" id="statTotal">0</div></div>
+      <div class="stat"><div class="stat-label">Success</div><div class="stat-val green" id="statOk">0</div></div>
+      <div class="stat"><div class="stat-label">Errors</div><div class="stat-val red" id="statErr">0</div></div>
+    </div>
+    <div class="log" id="logArea"></div>
+    <div class="export-row">
+      <button class="exp-btn" id="expCsvBtn" onclick="exportCSV()" style="display:none"><i class="ti ti-table-export" style="font-size:13px"></i> Export Results</button>
+      <button class="exp-btn" onclick="exportLog()"><i class="ti ti-download" style="font-size:13px"></i> Export Log</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const URLS={
+  test:'https://tc4.wms.ocs.oraclecloud.com:443/solaredge_test/wms/lgfapi/v10',
+  prod:'https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10'
+};
+let env=null,csvRows=[],stopFlag=false,logLines=[],resultRows=[],errorRows=[];
+
+function selectEnv(e){
+  env=e;
+  document.getElementById('btnTest').className='env-btn'+(e==='test'?' active-test':'');
+  document.getElementById('btnProd').className='env-btn'+(e==='prod'?' active-prod':'');
+  document.getElementById('prodWarn').className='prod-warn'+(e==='prod'?' show':'');
+  const tag=document.getElementById('envTag');
+  tag.textContent=e.toUpperCase();tag.className='env-tag '+e;
+  markActive('dot-2');
+  if(csvRows.length)markActive('dot-3');
+  checkReady();
+}
+
+function markActive(dotId){
+  const dot=document.getElementById(dotId);
+  if(dot)dot.classList.add('active');
+}
+
+function unlock(cardId,dotId){
+  document.getElementById(cardId).classList.remove('locked');
+  const dot=document.getElementById(dotId);
+  dot.classList.remove('done');dot.classList.add('active');
+}
+
+function handleCSV(e){
+  const file=e.target.files[0];if(!file)return;
+  Papa.parse(file,{header:true,skipEmptyLines:true,complete:res=>{
+    csvRows=res.data;
+    const dz=document.getElementById('dropZone');
+    dz.classList.add('loaded');
+    document.getElementById('uploadIcon').className='ti ti-circle-check';
+    document.getElementById('uploadLabel').textContent='✓ '+file.name;
+    const info=document.getElementById('csvInfo');
+    document.getElementById('csvInfoText').innerHTML=
+      '<span>'+csvRows.length+' locations</span> loaded — columns: '+
+      (res.meta.fields||[]).join(', ');
+    info.style.display='block';
+    markActive('dot-3');
+    checkReady();
+  }});
+}
+
+function checkReady(){
+  const u=document.getElementById('username').value.trim();
+  const p=document.getElementById('password').value.trim();
+  document.getElementById('runBtn').disabled=!(env&&u&&p&&csvRows.length);
+}
+
+function toJsonArray(val){
+  if(typeof val!=='string')return String(val);
+  if(val.startsWith('['))return val;
+  return JSON.stringify(val.split(',').map(s=>s.trim()).filter(Boolean));
+}
+
+function buildBody(row){
+  return JSON.stringify({
+    parameters:{
+      facility_id__code:row['Facility']||'',
+      barcode:row['Location']||''
+    },
+    options:{
+      lpn_nbr_list:(row['LPN Nbr']||'').split(',').map(s=>s.trim()).filter(Boolean),
+      validate_only_flg:'N',
+      deferred_mode_flg:'Y'
+    }
+  });
+}
+
+function log(msg,type=''){
+  const ts=new Date().toLocaleTimeString('en-GB');
+  logLines.push({ts,msg,type});
+  const el=document.getElementById('logArea');
+  const div=document.createElement('div');
+  if(type)div.className=type;
+  div.textContent='['+ts+'] '+msg;
+  el.appendChild(div);el.scrollTop=el.scrollHeight;
+}
+
+function updateStats(total,ok,err){
+  document.getElementById('statTotal').textContent=total;
+  document.getElementById('statOk').textContent=ok;
+  document.getElementById('statErr').textContent=err;
+  const pct=total?Math.round(((ok+err)/total)*100):0;
+  document.getElementById('progressFill').style.width=pct+'%';
+  document.getElementById('progressLabel').textContent=(ok+err)+' / '+total;
+}
+
+async function runAll(){
+  if(env==='prod'){
+    if(!confirm('⚠️ PRODUCTION\n\nYou are about to run '+csvRows.length+' location(s) on Production.\nThis action is irreversible. Continue?'))return;
+  }
+  const u=document.getElementById('username').value.trim();
+  const p=document.getElementById('password').value.trim();
+  const baseUrl=URLS[env];
+  const auth='Basic '+btoa(u+':'+p);
+
+  stopFlag=false;logLines=[];resultRows=[];errorRows=[];
+  document.getElementById('logArea').innerHTML='';
+  document.getElementById('resultsCard').classList.add('show');
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('stopBtn').classList.add('show');
+  document.getElementById('expCsvBtn').style.display='none';
+  updateStats(csvRows.length,0,0);
+
+  let ok=0,err=0;
+  log('Starting — '+csvRows.length+' locations ['+env.toUpperCase()+']','inf');
+
+  for(let i=0;i<csvRows.length;i++){
+    if(stopFlag){log('Stopped by user.','inf');break}
+    const row=csvRows[i];
+    const loc=row['Location']||'?';
+    const lpns=(row['LPN Nbr']||'').split(',').map(s=>s.trim()).filter(Boolean);
+    log('['+( i+1)+'/'+csvRows.length+'] '+loc+' ('+lpns.length+' LPN'+(lpns.length!==1?'s':'))'),'row');
+    try{
+      const res=await fetch(baseUrl+'/entity/location/cc_confirm_count_lpn_scan',{
+        method:'POST',
+        headers:{'Authorization':auth,'Content-Type':'application/json'},
+        body:buildBody(row)
+      });
+      if(res.ok){
+        log('  ✓ '+res.status,'ok');
+        resultRows.push({...row,_status:'success',_http:res.status});
+        ok++;
+      }else{
+        const txt=await res.text();
+        let detail=txt;
+        try{const j=JSON.parse(txt);detail=j.message||(j.details?JSON.stringify(j.details):txt)}catch{}
+        log('  ✗ '+res.status+': '+detail.slice(0,120),'err');
+        errorRows.push({...row,_status:'error',_http:res.status,_message:detail.slice(0,200)});
+        err++;
+      }
+    }catch(e){
+      log('  ✗ '+e.message,'err');
+      errorRows.push({...row,_status:'error',_http:'',_message:e.message});
+      err++;
+    }
+    updateStats(csvRows.length,ok,err);
+    if(i<csvRows.length-1&&!stopFlag)await new Promise(r=>setTimeout(r,150));
+  }
+
+  document.getElementById('runBtn').disabled=false;
+  document.getElementById('stopBtn').classList.remove('show');
+  if(errorRows.length||resultRows.length)document.getElementById('expCsvBtn').style.display='inline-flex';
+  log('Done: '+ok+' success, '+err+' errors.',ok===csvRows.length?'ok':'inf');
+}
+
+function stopRun(){stopFlag=true}
+
+function buildCSV(rows){
+  if(!rows.length)return'';
+  const escape=v=>{
+    if(v==null)return'';
+    const s=String(v);
+    return s.includes(',')||s.includes('"')||s.includes('\n')?'"'+s.replace(/"/g,'""')+'"':s;
+  };
+  const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))];
+  return[keys.join(','),...rows.map(r=>keys.map(k=>escape(r[k])).join(','))].join('\n');
+}
+
+function exportCSV(){
+  const date=new Date().toISOString().slice(0,10);
+  if(resultRows.length){
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([buildCSV(resultRows)],{type:'text/csv'}));
+    a.download='cc_results_'+env+'_'+date+'.csv';a.click();
+  }
+  if(errorRows.length){
+    setTimeout(()=>{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(new Blob([buildCSV(errorRows)],{type:'text/csv'}));
+      a.download='cc_errors_'+env+'_'+date+'.csv';a.click();
+    },400);
+  }
+}
+
+function exportLog(){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([logLines.map(l=>'['+l.ts+'] '+l.msg).join('\n')],{type:'text/plain'}));
+  a.download='cc_log_'+(env||'custom')+'_'+new Date().toISOString().slice(0,10)+'.txt';
+  a.click();
+}
+</script>
+</body>
+</html>
