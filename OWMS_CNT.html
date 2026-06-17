@@ -206,6 +206,16 @@ body{
 }
 .exp-btn:hover{background:var(--surface)}
 
+.trow td{padding:7px 8px;border-bottom:0.5px solid var(--border);vertical-align:top}
+.trow:last-child td{border-bottom:none}
+.trow.pending td{color:var(--ink-light)}
+.status-pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.status-pill.running{background:var(--blue-bg);color:var(--blue)}
+.status-pill.ok{background:var(--green-bg);color:var(--green)}
+.status-pill.err{background:#fdf0f0;color:#a32d2d}
+.status-pill.pending{background:var(--surface);color:var(--ink-light)}
+.msg-cell{color:var(--ink-mid);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg-cell.err{color:#a32d2d}
 @media(max-width:480px){
   .grid2,.env-row,.stats{grid-template-columns:1fr}
   .header-label{display:none}
@@ -302,10 +312,22 @@ body{
       <div class="stat"><div class="stat-label">Success</div><div class="stat-val green" id="statOk">0</div></div>
       <div class="stat"><div class="stat-label">Errors</div><div class="stat-val red" id="statErr">0</div></div>
     </div>
-    <div class="log" id="logArea"></div>
+    <div id="resultsTable" style="margin-bottom:10px;display:none">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 8px;font-weight:600;color:var(--ink-mid);font-size:11px;text-transform:uppercase;letter-spacing:.05em">#</th>
+            <th style="text-align:left;padding:6px 8px;font-weight:600;color:var(--ink-mid);font-size:11px;text-transform:uppercase;letter-spacing:.05em">Location</th>
+            <th style="text-align:left;padding:6px 8px;font-weight:600;color:var(--ink-mid);font-size:11px;text-transform:uppercase;letter-spacing:.05em">LPNs</th>
+            <th style="text-align:left;padding:6px 8px;font-weight:600;color:var(--ink-mid);font-size:11px;text-transform:uppercase;letter-spacing:.05em">Status</th>
+            <th style="text-align:left;padding:6px 8px;font-weight:600;color:var(--ink-mid);font-size:11px;text-transform:uppercase;letter-spacing:.05em">Message</th>
+          </tr>
+        </thead>
+        <tbody id="resultsTableBody"></tbody>
+      </table>
+    </div>
     <div class="export-row">
       <button class="exp-btn" id="expCsvBtn" onclick="exportCSV()" style="display:none"><i class="ti ti-table-export" style="font-size:13px"></i> Export Results</button>
-      <button class="exp-btn" onclick="exportLog()"><i class="ti ti-download" style="font-size:13px"></i> Export Log</button>
     </div>
   </div>
 
@@ -414,22 +436,36 @@ async function runAll(){
   const auth='Basic '+btoa(u+':'+p);
 
   stopFlag=false;logLines=[];resultRows=[];errorRows=[];
-  document.getElementById('logArea').innerHTML='';
   document.getElementById('resultsCard').classList.add('show');
   document.getElementById('runBtn').disabled=true;
   document.getElementById('stopBtn').classList.add('show');
   document.getElementById('expCsvBtn').style.display='none';
+  document.getElementById('resultsTable').style.display='block';
   updateStats(csvRows.length,0,0);
+  // pre-populate table with all rows as pending
+  const tbody=document.getElementById('resultsTableBody');
+  tbody.innerHTML='';
+  csvRows.forEach((row,i)=>{
+    const lpns=(row['LPN Nbr']||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const tr=document.createElement('tr');
+    tr.className='trow pending';tr.id='trow-'+i;
+    tr.innerHTML=`<td style='color:var(--ink-light);font-size:11px'>${i+1}</td>`+
+      `<td style='font-weight:500'>${row['Location']||'-'}</td>`+
+      `<td style='color:var(--ink-mid)'>${lpns.length} LPN${lpns.length!==1?'s':''}</td>`+
+      `<td><span class='status-pill pending' id='pill-${i}'>Pending</span></td>`+
+      `<td class='msg-cell' id='msg-${i}'>—</td>`;
+    tbody.appendChild(tr);
+  });
 
   let ok=0,err=0;
-  log('Starting — '+csvRows.length+' locations ['+env.toUpperCase()+']','inf');
 
   for(let i=0;i<csvRows.length;i++){
     if(stopFlag){log('Stopped by user.','inf');break}
     const row=csvRows[i];
     const loc=row['Location']||'?';
     const lpns=(row['LPN Nbr']||'').split(',').map(s=>s.trim()).filter(Boolean);
-    log('['+( i+1)+'/'+csvRows.length+'] '+loc+' ('+lpns.length+' LPN'+(lpns.length!==1?'s':'))'),'row');
+    // update row to running
+    setRowStatus(i,'running','Running...');
     try{
       const res=await fetch(baseUrl+'/entity/location/cc_confirm_count_lpn_scan',{
         method:'POST',
@@ -437,20 +473,20 @@ async function runAll(){
         body:buildBody(row)
       });
       if(res.ok){
-        log('  ✓ '+res.status,'ok');
-        resultRows.push({...row,_status:'success',_http:res.status});
+        setRowStatus(i,'ok','Success');
+        resultRows.push({...row,Status:'Success',Message:''});
         ok++;
       }else{
         const txt=await res.text();
         let detail=txt;
         try{const j=JSON.parse(txt);detail=j.message||(j.details?JSON.stringify(j.details):txt)}catch{}
-        log('  ✗ '+res.status+': '+detail.slice(0,120),'err');
-        errorRows.push({...row,_status:'error',_http:res.status,_message:detail.slice(0,200)});
+        setRowStatus(i,'err','Failed',detail.slice(0,200));
+        errorRows.push({...row,Status:'Failed',Message:detail.slice(0,200)});
         err++;
       }
     }catch(e){
-      log('  ✗ '+e.message,'err');
-      errorRows.push({...row,_status:'error',_http:'',_message:e.message});
+      setRowStatus(i,'err','Failed',e.message);
+      errorRows.push({...row,Status:'Failed',Message:e.message});
       err++;
     }
     updateStats(csvRows.length,ok,err);
@@ -460,9 +496,19 @@ async function runAll(){
   document.getElementById('runBtn').disabled=false;
   document.getElementById('stopBtn').classList.remove('show');
   if(errorRows.length||resultRows.length)document.getElementById('expCsvBtn').style.display='inline-flex';
-  log('Done: '+ok+' success, '+err+' errors.',ok===csvRows.length?'ok':'inf');
+
 }
 
+function setRowStatus(i,type,label,msg=''){
+  const pill=document.getElementById('pill-'+i);
+  const msgEl=document.getElementById('msg-'+i);
+  const row=document.getElementById('trow-'+i);
+  if(pill){pill.className='status-pill '+type;pill.textContent=label}
+  if(msgEl){msgEl.textContent=msg||'—';msgEl.className='msg-cell'+(type==='err'?' err':'')}
+  if(row)row.className='trow';
+  // scroll to current row
+  if(row)row.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
 function stopRun(){stopFlag=true}
 
 function buildCSV(rows){
@@ -477,19 +523,13 @@ function buildCSV(rows){
 }
 
 function exportCSV(){
+  const all=[...resultRows,...errorRows];
+  if(!all.length){alert('No results yet.');return}
   const date=new Date().toISOString().slice(0,10);
-  if(resultRows.length){
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(new Blob([buildCSV(resultRows)],{type:'text/csv'}));
-    a.download='cc_results_'+env+'_'+date+'.csv';a.click();
-  }
-  if(errorRows.length){
-    setTimeout(()=>{
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(new Blob([buildCSV(errorRows)],{type:'text/csv'}));
-      a.download='cc_errors_'+env+'_'+date+'.csv';a.click();
-    },400);
-  }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([buildCSV(all)],{type:'text/csv'}));
+  a.download='cc_results_'+env+'_'+date+'.csv';
+  a.click();
 }
 
 function exportLog(){
