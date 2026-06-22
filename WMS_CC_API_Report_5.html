@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WMS Cycle Count Reporting — API</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --navy: #001446; --red: #FF3232; --blue-mid: #1a3a7a;
+    --blue-light: #e8edf8; --blue-pale: #f4f6fb;
+    --green: #00875a; --green-light: #e3f5ee;
+    --orange: #ff6b00; --orange-light: #fff3e8;
+    --purple: #6b21a8; --purple-light: #f3e8ff;
+    --gray-1: #f7f8fa; --gray-2: #e9ecf0; --gray-3: #c4cad4;
+    --gray-4: #8892a0; --gray-5: #4a5568;
+    --text: #1a2233; --white: #ffffff;
+    --shadow: 0 2px 12px rgba(0,20,70,0.08);
+    --radius: 10px; --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--gray-1); color: var(--text); min-height: 100vh; }
+
+  .header { background: var(--navy); color: var(--white); padding: 0 32px; height: 56px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
+  .header-logo { display: flex; align-items: center; gap: 10px; }
+  .header-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+  .header h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.3px; }
+  .header-badge { font-size: 10px; font-weight: 700; letter-spacing: 0.8px; padding: 3px 8px; border-radius: 10px; background: var(--purple); color: var(--white); text-transform: uppercase; }
+  .header-sub { font-size: 12px; color: rgba(255,255,255,0.5); margin-left: auto; }
+
+  .main { max-width: 1200px; margin: 0 auto; padding: 28px 24px 60px; }
+
+  .step-card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 20px; border: 1px solid var(--gray-2); overflow: hidden; }
+  .step-header { display: flex; align-items: center; gap: 14px; padding: 18px 24px; border-bottom: 1px solid var(--gray-2); background: var(--gray-1); }
+  .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--navy); color: var(--white); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-num.done { background: var(--green); }
+  .step-num.err  { background: var(--red); }
+  .step-title { font-size: 14px; font-weight: 600; color: var(--navy); }
+  .step-desc { font-size: 12px; color: var(--gray-4); margin-top: 2px; }
+  .step-body { padding: 20px 24px; }
+
+  .field-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+  .field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 200px; }
+  .field.field-wide { flex: 2; min-width: 300px; }
+  .field label { font-size: 11px; font-weight: 600; color: var(--gray-5); text-transform: uppercase; letter-spacing: 0.5px; }
+  .field input { padding: 9px 12px; border: 1px solid var(--gray-3); border-radius: var(--radius-sm); font-size: 13px; color: var(--text); background: var(--white); outline: none; transition: border-color 0.15s; font-family: inherit; }
+  .field input:focus { border-color: var(--navy); }
+  .field-hint { font-size: 11px; color: var(--gray-4); margin-top: 3px; }
+
+  .url-preview { margin-top: 10px; padding: 8px 12px; background: var(--blue-pale); border: 1px solid var(--blue-light); border-radius: var(--radius-sm); font-size: 11px; font-family: monospace; color: var(--navy); word-break: break-all; }
+
+  .status-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+  .status-chip { display: flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 2px solid var(--gray-2); background: var(--white); color: var(--gray-5); cursor: pointer; transition: all 0.15s; user-select: none; }
+  .status-chip input[type=checkbox] { display: none; }
+  .status-chip.active.pending  { border-color: var(--orange); background: var(--orange-light); color: var(--orange); }
+  .status-chip.active.approved { border-color: var(--navy);   background: var(--blue-light);   color: var(--navy); }
+  .status-chip.active.novar    { border-color: var(--green);  background: var(--green-light);  color: var(--green); }
+
+  .cost-row { display: flex; align-items: center; gap: 14px; padding: 12px 16px; background: var(--orange-light); border-radius: var(--radius-sm); border: 1px solid #ffd4b0; }
+  .cost-icon { font-size: 18px; }
+  .cost-text { flex: 1; }
+  .cost-text strong { font-size: 12px; color: var(--orange); display: block; margin-bottom: 2px; }
+  .cost-text span { font-size: 11px; color: var(--gray-5); }
+  .cost-upload-btn { position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: var(--orange); color: var(--white); border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+  .cost-upload-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .cost-loaded-badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: var(--green-light); color: var(--green); border-radius: 20px; font-size: 11px; font-weight: 600; }
+
+  .btn-generate { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; background: var(--navy); color: var(--white); border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; letter-spacing: 0.3px; }
+  .btn-generate:hover { background: var(--blue-mid); }
+  .btn-generate:disabled { background: var(--gray-3); cursor: not-allowed; }
+
+  .progress-wrap { margin-top: 16px; display: none; }
+  .progress-wrap.show { display: block; }
+  .progress-bar-bg { height: 6px; background: var(--gray-2); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+  .progress-bar-fill { height: 100%; background: var(--navy); border-radius: 3px; transition: width 0.3s ease; width: 0%; }
+  .progress-label { font-size: 12px; color: var(--gray-5); display: flex; justify-content: space-between; }
+
+  .summary-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .chip { padding: 8px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .chip-navy   { background: var(--navy); color: var(--white); }
+  .chip-green  { background: var(--green-light); color: var(--green); }
+  .chip-red    { background: #ffe8e8; color: var(--red); }
+  .chip-orange { background: var(--orange-light); color: var(--orange); }
+  .chip-gray   { background: var(--gray-2); color: var(--gray-5); }
+
+  .tabs { display: flex; border-bottom: 2px solid var(--gray-2); }
+  .tab { padding: 11px 22px; font-size: 13px; font-weight: 600; color: var(--gray-4); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; display: flex; align-items: center; gap: 7px; }
+  .tab:hover { color: var(--navy); }
+  .tab.active { color: var(--navy); border-bottom-color: var(--navy); }
+  .tab-badge { font-size: 10px; padding: 1px 6px; border-radius: 10px; background: var(--gray-2); color: var(--gray-5); font-weight: 700; }
+  .tab.active .tab-badge { background: var(--navy); color: var(--white); }
+  .tab-panel { display: none; padding: 20px 0 0; }
+  .tab-panel.active { display: block; }
+
+  .table-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .search-input { flex: 1; min-width: 200px; padding: 8px 12px 8px 32px; border: 1px solid var(--gray-3); border-radius: var(--radius-sm); font-size: 12px; outline: none; transition: border-color 0.15s; background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238892a0' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 10px center; }
+  .search-input:focus { border-color: var(--navy); }
+  .filter-select { padding: 8px 12px; border: 1px solid var(--gray-3); border-radius: var(--radius-sm); font-size: 12px; outline: none; background: var(--white); color: var(--text); cursor: pointer; }
+  .btn-export { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--green); color: var(--white); border: none; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+  .btn-export:hover { background: #006b47; }
+  .row-count { font-size: 11px; color: var(--gray-4); margin-left: auto; }
+
+  .table-wrap { overflow-x: auto; border-radius: var(--radius-sm); border: 1px solid var(--gray-2); max-height: 520px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 700px; }
+  thead { position: sticky; top: 0; z-index: 2; }
+  th { background: var(--navy); color: var(--white); padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.3px; white-space: nowrap; cursor: pointer; user-select: none; }
+  th:hover { background: var(--blue-mid); }
+  th.sort-asc::after { content: ' ▲'; font-size: 9px; }
+  th.sort-desc::after { content: ' ▼'; font-size: 9px; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--gray-2); color: var(--text); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: var(--gray-1); }
+  tr:hover td { background: var(--blue-light); }
+
+  .adj-pos { color: var(--green); font-weight: 700; }
+  .adj-neg { color: var(--red); font-weight: 700; }
+  .adj-zero { color: var(--gray-4); }
+  .cost-pos { color: var(--green); font-weight: 600; }
+  .cost-neg { color: var(--red); font-weight: 600; }
+  .badge-variance { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+  .badge-match { background: var(--green-light); color: var(--green); }
+  .badge-over  { background: #e8f5e9; color: #2e7d32; }
+  .badge-short { background: #ffe8e8; color: var(--red); }
+  .status-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; }
+  .status-pill.pending  { background: var(--orange-light); color: var(--orange); }
+  .status-pill.novar    { background: var(--green-light);  color: var(--green); }
+  .status-pill.approved { background: var(--blue-light);   color: var(--navy); }
+  .status-pill.inprog   { background: #f0f0ff; color: #5555cc; }
+  .status-pill.other    { background: var(--gray-2); color: var(--gray-5); }
+  .status-chip.active.inprog { border-color: #5555cc; background: #f0f0ff; color: #5555cc; }
+  .status-chip.active.novar  { border-color: var(--green); background: var(--green-light); color: var(--green); }
+
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--gray-4); }
+  .empty-state .empty-icon { font-size: 36px; margin-bottom: 10px; }
+  .empty-state p { font-size: 13px; }
+
+  .alert { padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12px; display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; line-height: 1.5; }
+  .alert-warn    { background: var(--orange-light); border: 1px solid #ffd4b0; color: #7a3500; }
+  .alert-info    { background: var(--blue-light);   border: 1px solid #c5d0e8; color: var(--navy); }
+  .alert-success { background: var(--green-light);  border: 1px solid #b0dfc9; color: #005a3a; }
+  .alert-error   { background: #ffe8e8; border: 1px solid #ffb0b0; color: #7a0000; }
+
+  #results-section { display: none; }
+  #results-section.show { display: block; }
+
+  .btn-sm { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 600; border: 1px solid var(--gray-3); background: var(--white); color: var(--gray-5); cursor: pointer; transition: all 0.15s; }
+  .btn-sm:hover { border-color: var(--navy); color: var(--navy); }
+  .debug-row { display: none; align-items: center; gap: 10px; margin-top: 14px; }
+  .debug-row.show { display: flex; }
+  .raw-viewer { margin-top: 10px; padding: 12px; background: #1a1a2e; border-radius: var(--radius-sm); font-size: 11px; font-family: monospace; color: #a8d8a8; max-height: 280px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; display: none; }
+  .raw-viewer.show { display: block; }
+
+  /* VERBOSE LOG */
+  .log-panel { margin-top: 14px; display: none; }
+  .log-panel.show { display: block; }
+  .log-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .log-panel-title { font-size: 11px; font-weight: 600; color: var(--gray-5); text-transform: uppercase; letter-spacing: 0.5px; }
+  .log-lines { background: #0f1923; border-radius: var(--radius-sm); padding: 10px 12px; max-height: 260px; overflow-y: auto; font-size: 11px; font-family: monospace; line-height: 1.7; }
+  .log-line { display: flex; gap: 10px; }
+  .log-ts   { color: #4a6a8a; flex-shrink: 0; }
+  .log-info { color: #7dd3fc; }
+  .log-ok   { color: #86efac; }
+  .log-warn { color: #fde68a; }
+  .log-err  { color: #fca5a5; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">
+    <div class="header-dot"></div>
+    <h1>WMS Cycle Count Reporting</h1>
+  </div>
+  <span class="header-badge">API Mode</span>
+  <span class="header-sub">SERFRENO · SOLAR_US</span>
+</div>
+
+<div class="main">
+
+  <!-- STEP 1 -->
+  <div class="step-card">
+    <div class="step-header">
+      <div class="step-num" id="step1-num">1</div>
+      <div>
+        <div class="step-title">WMS Connection</div>
+        <div class="step-desc">Select environment and enter credentials</div>
+      </div>
+    </div>
+    <div class="step-body">
+
+      <!-- ENV SELECTOR -->
+      <div style="display:flex;gap:10px;margin-bottom:14px;">
+        <button class="env-select-btn active-test" id="btn-env-test" onclick="selectEnv('test')" style="flex:1;padding:11px 14px;border-radius:8px;border:2px solid var(--orange);background:var(--orange-light);cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px;transition:all .15s;">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--orange);flex-shrink:0;"></div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);">Test</div>
+            <div style="font-size:11px;color:var(--gray-4);font-family:monospace;margin-top:1px;">tc4.wms.ocs.oraclecloud.com/solaredge_test</div>
+          </div>
+          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--orange);color:white;letter-spacing:.05em;">TEST</span>
+        </button>
+        <button class="env-select-btn" id="btn-env-prod" onclick="selectEnv('prod')" style="flex:1;padding:11px 14px;border-radius:8px;border:2px solid var(--gray-3);background:var(--white);cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px;transition:all .15s;">
+          <div style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;"></div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);">Production</div>
+            <div style="font-size:11px;color:var(--gray-4);font-family:monospace;margin-top:1px;">c4.wms.ocs.oraclecloud.com/solaredge</div>
+          </div>
+          <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--red);color:white;letter-spacing:.05em;">PROD</span>
+        </button>
+      </div>
+
+      <!-- PROD WARNING -->
+      <div id="prod-warning" style="display:none;align-items:center;gap:8px;background:#ffe8e8;border:1px solid #ffb0b0;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:12px;color:#7a0000;">
+        ⚠️ <span>You are connected to <strong>Production</strong>. This is live data.</span>
+      </div>
+
+      <!-- CREDENTIALS -->
+      <div class="field-row">
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="wms-user" autocomplete="username">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="wms-pass" autocomplete="current-password">
+        </div>
+      </div>
+      <div class="url-preview" id="url-preview"></div>
+      <div class="alert alert-info" style="margin-top:12px;">ℹ️ Credentials are sent only to your WMS instance via Basic Auth. They are never stored.</div>
+      <div class="debug-row" id="debug-row">
+        <button class="btn-sm" onclick="testConnection()">🔗 Test Connection</button>
+        <button class="btn-sm" onclick="toggleRaw()">🔍 Toggle Raw Response</button>
+      </div>
+      <div class="raw-viewer" id="raw-viewer"></div>
+      <div id="conn-status"></div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step-card">
+    <div class="step-header">
+      <div class="step-num" id="step2-num">2</div>
+      <div>
+        <div class="step-title">Date Range & Status Filter</div>
+        <div class="step-desc">Filters cc_adjustment_hdr by create_ts, then fetches matching cc_adjustment_dtl records</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="field-row">
+        <div class="field">
+          <label>From Date</label>
+          <input type="date" id="date-from">
+        </div>
+        <div class="field">
+          <label>To Date</label>
+          <input type="date" id="date-to">
+        </div>
+      </div>
+      <div style="margin-top:14px;">
+        <div style="font-size:11px;font-weight:600;color:var(--gray-5);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Include status:</div>
+        <div class="status-filters">
+          <label class="status-chip active pending" id="chip-pending">
+            <input type="checkbox" id="chk-pending" checked onchange="toggleChip('pending')">
+            🟠 Pending (status 30)
+          </label>
+          <label class="status-chip active approved" id="chip-approved">
+            <input type="checkbox" id="chk-approved" checked onchange="toggleChip('approved')">
+            🔵 Approved (status 50)
+          </label>
+          <label class="status-chip inprog" id="chip-inprog">
+            <input type="checkbox" id="chk-inprog" onchange="toggleChip('inprog')">
+            🔄 In Progress (status 20)
+          </label>
+          <label class="status-chip novar" id="chip-novar">
+            <input type="checkbox" id="chk-novar" onchange="toggleChip('novar')">
+            ✅ No Variance (status 70)
+          </label>
+        </div>
+        <div class="alert alert-warn" style="margin-top:12px;">
+          ⚠️ <strong>Pending (30)</strong> = variance exists, awaiting approval — these don't appear in CC History export.<br>
+          <strong>Approved (50)</strong> = approved but not yet posted to inventory.<br>
+          <strong>No Variance (70)</strong> = counted qty matched expected, auto-closed.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step-card">
+    <div class="step-header">
+      <div class="step-num" id="step3-num">3</div>
+      <div>
+        <div class="step-title">Unit Cost Reference <span style="font-weight:400;color:var(--gray-4);font-size:12px;">(optional)</span></div>
+        <div class="step-desc">Upload to enable Adjusted Cost column · file must have "Item Code" + "Unit Cost" columns</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="cost-row">
+        <div class="cost-icon">💰</div>
+        <div class="cost-text">
+          <strong>Adjusted Cost column will show 0 without this file</strong>
+          <span>Upload the Finance CC file or any Excel/CSV with Item Code and Unit Cost</span>
+        </div>
+        <div id="cost-upload-area">
+          <label class="cost-upload-btn">⬆ Upload Cost File<input type="file" accept=".xlsx,.xls,.csv" onchange="handleCostFile(event)"></label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step-card">
+    <div class="step-header">
+      <div class="step-num" id="step4-num">4</div>
+      <div>
+        <div class="step-title">Fetch & Generate Reports</div>
+        <div class="step-desc">Step 1: fetch HDR (by date+status) → Step 2: fetch DTL for each HDR → Step 3: build Finance + Location reports</div>
+      </div>
+    </div>
+    <div class="step-body">
+      <button class="btn-generate" id="btn-generate" onclick="startFetch()">⚡ Fetch from API & Generate Reports</button>
+      <div class="progress-wrap" id="progress-wrap">
+        <div style="height:12px"></div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+        <div class="progress-label"><span id="progress-text">Connecting…</span><span id="progress-count"></span></div>
+      </div>
+      <div id="fetch-log"></div>
+
+      <!-- Verbose log -->
+      <div class="log-panel" id="log-panel">
+        <div class="log-panel-header">
+          <span class="log-panel-title">📋 Execution Log</span>
+          <button class="btn-sm" onclick="copyLog()">📋 Copy</button>
+        </div>
+        <div class="log-lines" id="log-lines"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results-section">
+    <div class="step-card">
+      <div class="step-body" style="padding-bottom:0;">
+        <div class="summary-bar" id="summary-bar"></div>
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('finance')" id="tab-finance">💰 Finance Report<span class="tab-badge" id="badge-finance">0</span></div>
+          <div class="tab" onclick="switchTab('location')" id="tab-location">📦 Location / Bin Report<span class="tab-badge" id="badge-location">0</span></div>
+        </div>
+
+        <!-- Finance -->
+        <div class="tab-panel active" id="panel-finance">
+          <div class="table-toolbar">
+            <input type="text" class="search-input" placeholder="Search item code or description…" oninput="filterTable('finance',this.value)">
+            <select class="filter-select" id="filter-finance-adj" onchange="filterTable('finance',document.querySelector('#panel-finance .search-input').value)">
+              <option value="all">All items</option>
+              <option value="adj">Adjustments only</option>
+              <option value="match">No variance only</option>
+            </select>
+            <select class="filter-select" id="filter-finance-status" onchange="filterTable('finance',document.querySelector('#panel-finance .search-input').value)">
+              <option value="all">All statuses</option>
+              <option value="20">In Progress (20)</option>
+              <option value="30">Pending (30)</option>
+              <option value="50">Approved (50)</option>
+              <option value="70">No Variance (70)</option>
+            </select>
+            <span class="row-count" id="count-finance"></span>
+            <button class="btn-export" onclick="exportReport('finance')">⬇ Export Excel</button>
+          </div>
+          <div class="table-wrap">
+            <table id="table-finance">
+              <thead><tr>
+                <th onclick="sortTable('finance',0)">Item Code</th>
+                <th onclick="sortTable('finance',1)">Description</th>
+                <th onclick="sortTable('finance',2)" style="text-align:right">Unit Cost</th>
+                <th onclick="sortTable('finance',3)" style="text-align:right">Expected Qty</th>
+                <th onclick="sortTable('finance',4)" style="text-align:right">Counted Qty</th>
+                <th onclick="sortTable('finance',5)" style="text-align:right">Adj Qty</th>
+                <th onclick="sortTable('finance',6)" style="text-align:right">Adj Cost</th>
+                <th onclick="sortTable('finance',7)">Status</th>
+                <th onclick="sortTable('finance',8)">Variance</th>
+              </tr></thead>
+              <tbody id="tbody-finance"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Location -->
+        <div class="tab-panel" id="panel-location">
+          <div class="table-toolbar">
+            <input type="text" class="search-input" placeholder="Search location, item, LPN…" oninput="filterTable('location',this.value)">
+            <select class="filter-select" id="filter-location-adj" onchange="filterTable('location',document.querySelector('#panel-location .search-input').value)">
+              <option value="all">All</option>
+              <option value="adj">Adjustments only</option>
+              <option value="match">No variance only</option>
+            </select>
+            <select class="filter-select" id="filter-location-status" onchange="filterTable('location',document.querySelector('#panel-location .search-input').value)">
+              <option value="all">All statuses</option>
+              <option value="20">In Progress (20)</option>
+              <option value="30">Pending (30)</option>
+              <option value="50">Approved (50)</option>
+              <option value="70">No Variance (70)</option>
+            </select>
+            <span class="row-count" id="count-location"></span>
+            <button class="btn-export" onclick="exportReport('location')">⬇ Export Excel</button>
+          </div>
+          <div class="table-wrap">
+            <table id="table-location">
+              <thead><tr>
+                <th onclick="sortTable('location',0)">Location</th>
+                <th onclick="sortTable('location',1)">LPN</th>
+                <th onclick="sortTable('location',2)">Item Code</th>
+                <th onclick="sortTable('location',3)">Description</th>
+                <th onclick="sortTable('location',4)" style="text-align:right">Expected Qty</th>
+                <th onclick="sortTable('location',5)" style="text-align:right">Counted Qty</th>
+                <th onclick="sortTable('location',6)" style="text-align:right">Adj Qty</th>
+                <th onclick="sortTable('location',7)">Status</th>
+                <th onclick="sortTable('location',8)">Create Date</th>
+              </tr></thead>
+              <tbody id="tbody-location"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Constants ─────────────────────────────────────────────────────────────────
+// Confirmed status_id values from SERFRENO SOLAR_US instance:
+const STATUS = { IN_PROGRESS: 20, PENDING: 30, APPROVED: 50, NO_VARIANCE: 70 };
+const STATUS_LABEL = { 20: 'In Progress', 30: 'Pending', 50: 'Approved', 70: 'No Variance' };
+const STATUS_CSS   = { 20: 'inprog', 30: 'pending', 50: 'approved', 70: 'novar' };
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let reportFinance  = [];
+let reportLocation = [];
+let costMap        = {};
+let sortState = { finance: {col:-1,asc:true}, location: {col:-1,asc:true} };
+
+// ── URL helpers ───────────────────────────────────────────────────────────────
+// ── Environment ───────────────────────────────────────────────────────────────
+const ENVS = {
+  test: 'https://tc4.wms.ocs.oraclecloud.com/solaredge_test/wms/lgfapi/v10/entity',
+  prod: 'https://c4.wms.ocs.oraclecloud.com:443/solaredge/wms/lgfapi/v10/entity',
+};
+let currentEnv = 'test';
+
+function selectEnv(env) {
+  currentEnv = env;
+  const btnTest = document.getElementById('btn-env-test');
+  const btnProd = document.getElementById('btn-env-prod');
+  const warn    = document.getElementById('prod-warning');
+  if (env === 'test') {
+    btnTest.style.border = '2px solid var(--orange)';
+    btnTest.style.background = 'var(--orange-light)';
+    btnProd.style.border = '2px solid var(--gray-3)';
+    btnProd.style.background = 'var(--white)';
+    warn.style.display = 'none';
+  } else {
+    btnProd.style.border = '2px solid var(--red)';
+    btnProd.style.background = '#ffe8e8';
+    btnTest.style.border = '2px solid var(--gray-3)';
+    btnTest.style.background = 'var(--white)';
+    warn.style.display = 'flex';
+  }
+  updateUrlPreview();
+}
+
+function getBaseUrl() {
+  return ENVS[currentEnv];
+}
+function getAuth() {
+  const u = document.getElementById('wms-user').value.trim();
+  const p = document.getElementById('wms-pass').value;
+  return 'Basic ' + btoa(u + ':' + p);
+}
+function updateUrlPreview() {
+  document.getElementById('url-preview').textContent = getBaseUrl() + '/cc_adjustment_hdr/?...';
+}
+
+// ── Status chip toggle ────────────────────────────────────────────────────────
+function toggleChip(id) {
+  const chk  = document.getElementById('chk-'  + id);
+  const chip = document.getElementById('chip-' + id);
+  chip.classList.toggle('active', chk.checked);
+}
+
+// ── Cost file ─────────────────────────────────────────────────────────────────
+function handleCostFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
+    for (const sn of wb.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
+      if (rows.length && rows[0].hasOwnProperty('Item Code') && rows[0].hasOwnProperty('Unit Cost')) {
+        costMap = {};
+        rows.forEach(r => { if (r['Item Code']) costMap[String(r['Item Code']).trim()] = Number(r['Unit Cost']) || 0; });
+        document.getElementById('cost-upload-area').innerHTML =
+          `<div class="cost-loaded-badge">✓ ${Object.keys(costMap).length} items with cost</div>`;
+        document.getElementById('step3-num').className = 'step-num done';
+        return;
+      }
+    }
+    alert('Could not find "Item Code" and "Unit Cost" columns.');
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── Test Connection ───────────────────────────────────────────────────────────
+async function testConnection() {
+  showLog('info', '🔗 Testing connection…');
+  try {
+    const url  = getBaseUrl() + '/cc_adjustment_hdr/?limit=1';
+    const resp = await fetch(url, { headers: { 'Authorization': getAuth(), 'Accept': 'application/json' } });
+    const json = await resp.json();
+    document.getElementById('raw-viewer').textContent = JSON.stringify(json, null, 2);
+    document.getElementById('debug-row').classList.add('show');
+    if (resp.ok) {
+      showLog('success', `✓ Connected! status ${resp.status} · result_count: ${json.result_count ?? '?'}`);
+      document.getElementById('step1-num').className = 'step-num done';
+    } else {
+      showLog('error', `✗ HTTP ${resp.status}: ${json.message || resp.statusText}`);
+    }
+  } catch(err) {
+    showLog('error', `✗ ${err.message} — check URL and CORS`);
+  }
+}
+function toggleRaw() { document.getElementById('raw-viewer').classList.toggle('show'); }
+
+// ── Paginated fetch with early stop (newest-first ordering) ──────────────────
+// Stops fetching once a full page contains only records older than stopBeforeDate.
+async function fetchAllPagesEarlyStop(url, authHeader, stopBeforeDate, onProgress) {
+  const results = [];
+  let pageNbr = 1;
+  let totalPages = null;
+  while (true) {
+    const sep      = url.includes('?') ? '&' : '?';
+    const fetchUrl = url + sep + 'page=' + pageNbr;
+    log('info', `GET page ${pageNbr}${totalPages ? '/'+totalPages : ''} → ${fetchUrl}`);
+    const resp = await fetch(fetchUrl, {
+      headers: { 'Authorization': authHeader, 'Accept': 'application/json' }
+    });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`HTTP ${resp.status} ${resp.statusText}: ${txt.slice(0,300)}`);
+    }
+    const json = await resp.json();
+    const page = json.results || [];
+    if (totalPages === null || json.page_count > totalPages) totalPages = json.page_count ?? 1;
+    results.push(...page);
+    log('ok', `  page ${pageNbr}/${totalPages}: ${page.length} records (total so far: ${results.length})`);
+    if (onProgress) onProgress(pageNbr, totalPages, results.length);
+    if (pageNbr >= totalPages || !page.length) break;
+    // Early stop: if the oldest record on this page is still newer than our fromDate,
+    // keep going. But if the newest record on this page is already older than fromDate,
+    // everything from here on is too old — stop.
+    const oldestOnPage = new Date(page[page.length - 1].create_ts);
+    if (oldestOnPage < stopBeforeDate) {
+      log('info', `  Early stop: oldest record on page ${pageNbr} (${page[page.length-1].create_ts}) is before fromDate — no need to fetch further pages`);
+      break;
+    }
+    pageNbr++;
+  }
+  return results;
+}
+async function fetchAllPages(url, authHeader, onProgress) {
+  const results = [];
+  let pageNbr = 1;
+  let totalPages = null;
+  while (true) {
+    // Always pass page= explicitly so page_count is consistent
+    const sep      = url.includes('?') ? '&' : '?';
+    const fetchUrl = url + sep + 'page=' + pageNbr;
+    log('info', `GET page ${pageNbr}${totalPages ? '/'+totalPages : ''} → ${fetchUrl}`);
+    const resp = await fetch(fetchUrl, {
+      headers: { 'Authorization': authHeader, 'Accept': 'application/json' }
+    });
+    if (!resp.ok) {
+      const txt = await resp.text();
+      throw new Error(`HTTP ${resp.status} ${resp.statusText}: ${txt.slice(0,300)}`);
+    }
+    const json = await resp.json();
+    const page = json.results || [];
+    // Always read page_count from each response (it's consistent once page= is explicit)
+    if (totalPages === null || json.page_count > totalPages) {
+      totalPages = json.page_count ?? 1;
+    }
+    results.push(...page);
+    log('ok', `  page ${pageNbr}/${totalPages}: ${page.length} records (total so far: ${results.length})`);
+    if (onProgress) onProgress(pageNbr, totalPages, results.length);
+    if (pageNbr >= totalPages || !page.length) break;
+    pageNbr++;
+  }
+  return results;
+}
+
+// ── Main Fetch ────────────────────────────────────────────────────────────────
+async function startFetch() {
+  const base   = getBaseUrl();
+  const user   = document.getElementById('wms-user').value.trim();
+  const pass   = document.getElementById('wms-pass').value;
+  const fromVal = document.getElementById('date-from').value;
+  const toVal   = document.getElementById('date-to').value;
+
+  if (!user || !pass) { showLog('error', 'Enter username and password.'); return; }
+  if (!fromVal || !toVal) { showLog('error', 'Set both From and To dates.'); return; }
+
+  const wantedStatuses = [];
+  if (document.getElementById('chk-inprog').checked)   wantedStatuses.push(STATUS.IN_PROGRESS);
+  if (document.getElementById('chk-pending').checked)  wantedStatuses.push(STATUS.PENDING);
+  if (document.getElementById('chk-approved').checked) wantedStatuses.push(STATUS.APPROVED);
+  if (document.getElementById('chk-novar').checked)    wantedStatuses.push(STATUS.NO_VARIANCE);
+  if (!wantedStatuses.length) { showLog('error', 'Select at least one status.'); return; }
+
+  const auth = getAuth();
+  const btn  = document.getElementById('btn-generate');
+  btn.disabled = true;
+  document.getElementById('results-section').classList.remove('show');
+  document.getElementById('fetch-log').innerHTML = '';
+  document.getElementById('debug-row').classList.add('show');
+
+  const pw    = document.getElementById('progress-wrap');
+  const fill  = document.getElementById('progress-fill');
+  const ptxt  = document.getElementById('progress-text');
+  const pcnt  = document.getElementById('progress-count');
+  pw.classList.add('show');
+
+  try {
+    clearLog();
+    log('info', `Starting fetch — from: ${fromVal} to: ${toVal} — statuses: ${wantedStatuses.join(',')}`);
+
+    // ── PHASE 1: fetch cc_adjustment_hdr filtered by date ──────────────────
+    // The API doesn't support date-range filter with = syntax reliably,
+    // so we fetch all HDR pages and filter client-side by create_ts.
+    ptxt.textContent = 'Fetching CC Adjustment Headers…';
+    fill.style.width = '5%';
+
+    const fromDate = new Date(fromVal + 'T00:00:00');
+    const toDate   = new Date(toVal   + 'T23:59:59');
+    log('info', `Date filter (local): ${fromDate.toISOString()} → ${toDate.toISOString()}`);
+
+    // ordering=-create_ts: fetch newest first so we can stop early once we pass fromDate
+    const hdrUrl = `${base}/cc_adjustment_hdr/?limit=500&ordering=-create_ts`;
+    log('info', `Fetching HDR from: ${hdrUrl}`);
+    const allHdr = await fetchAllPagesEarlyStop(hdrUrl, auth, fromDate, (pg, tot, cnt) => {
+      ptxt.textContent = `Fetching headers — page ${pg}/${tot}`;
+      fill.style.width = Math.min(5 + (pg/tot)*30, 35) + '%';
+      pcnt.textContent = `${cnt} headers`;
+    });
+    log('ok', `HDR fetch complete: ${allHdr.length} total headers`);
+
+    // Show date range of what we got
+    if (allHdr.length > 0) {
+      const dates = allHdr.map(h => h.create_ts).sort();
+      log('info', `HDR date range in DB: ${dates[0]} → ${dates[dates.length-1]}`);
+    }
+
+    // Filter by date and status client-side
+    const filteredHdr = allHdr.filter(h => {
+      const ts = new Date(h.create_ts);
+      return ts >= fromDate && ts <= toDate && wantedStatuses.includes(h.status_id);
+    });
+
+    // Log status breakdown
+    const statusCounts = {};
+    allHdr.forEach(h => { statusCounts[h.status_id] = (statusCounts[h.status_id]||0)+1; });
+    log('info', `Status breakdown (all HDR): ${JSON.stringify(statusCounts)}`);
+
+    // Log date-only filter result (ignoring status)
+    const dateOnly = allHdr.filter(h => { const ts = new Date(h.create_ts); return ts >= fromDate && ts <= toDate; });
+    log('info', `After date filter only: ${dateOnly.length} headers`);
+    log('info', `After date+status filter: ${filteredHdr.length} headers`);
+
+    if (!filteredHdr.length) {
+      showLog('warn', `Fetched ${allHdr.length} headers total — 0 matched the date range and selected statuses. Check the execution log below for details.`);
+      pw.classList.remove('show');
+      btn.disabled = false;
+      return;
+    }
+
+    pcnt.textContent = `${filteredHdr.length} headers matched`;
+    ptxt.textContent = `Fetching detail lines for ${filteredHdr.length} headers…`;
+    fill.style.width = '40%';
+    log('info', `Starting DTL fetch for ${filteredHdr.length} headers (batch size: 10)`);
+
+    // ── PHASE 2: fetch cc_adjustment_dtl for each matched HDR ─────────────
+    // Build a lookup map: hdr_id → hdr record (for status, location, create_ts)
+    const hdrMap = {};
+    filteredHdr.forEach(h => { hdrMap[h.id] = h; });
+
+    // Fetch dtl pages — filter server-side using cc_adjustment_hdr_id if possible,
+    // otherwise fetch all and filter. Since the API doesn't support nested filter reliably,
+    // we fetch all dtl and join client-side (more robust).
+    // For large datasets this can be slow — an alternative is fetching dtl per hdr id.
+    // We use per-hdr fetching to avoid pulling the entire dtl table.
+
+    const allDtl = [];
+    let done = 0;
+    const BATCH = 5; // parallel requests — reduced since each may now do multiple pages
+
+    for (let i = 0; i < filteredHdr.length; i += BATCH) {
+      const batch = filteredHdr.slice(i, i + BATCH);
+      const promises = batch.map(h =>
+        fetchAllPages(
+          `${base}/cc_adjustment_dtl/?cc_adjustment_hdr_id=${h.id}`,
+          auth
+        ).catch(err => { log('warn', `  HDR ${h.id} DTL fetch error: ${err.message}`); return []; })
+      );
+      const batchResults = await Promise.all(promises);
+      batchResults.forEach((rows, idx) => {
+        const hdr = batch[idx];
+        log('info', `  HDR ${hdr.id} (status ${hdr.status_id}, ${hdr.location_id?.key}): ${rows.length} dtl rows`);
+        rows.forEach(d => { d._hdr = hdr; });
+        allDtl.push(...rows);
+      });
+      done += batch.length;
+      const pct = 40 + (done / filteredHdr.length) * 50;
+      fill.style.width = pct + '%';
+      ptxt.textContent = `Fetching detail lines… ${done}/${filteredHdr.length} headers`;
+      pcnt.textContent = `${allDtl.length} detail rows`;
+      // Yield to browser
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    fill.style.width = '95%';
+    ptxt.textContent = 'Building reports…';
+
+    if (!allDtl.length) {
+      showLog('warn', `${filteredHdr.length} headers matched but 0 detail lines returned. The counts may have no item lines.`);
+      pw.classList.remove('show');
+      btn.disabled = false;
+      return;
+    }
+
+    buildReports(allDtl);
+    log('ok', `Reports built: ${reportFinance.length} finance rows, ${reportLocation.length} location rows`);
+
+    fill.style.width = '100%';
+    ptxt.textContent = 'Done';
+    document.getElementById('step4-num').className = 'step-num done';
+    document.getElementById('results-section').classList.add('show');
+    document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    showLog('success',
+      `✓ ${filteredHdr.length} headers · ${allDtl.length} detail lines · ` +
+      `${reportFinance.length} items in Finance · ${reportLocation.length} rows in Location`
+    );
+
+  } catch(err) {
+    log('err', `EXCEPTION: ${err.message}`);
+    pw.classList.remove('show');
+    document.getElementById('step4-num').className = 'step-num err';
+    showLog('error', `✗ ${err.message}`);
+  }
+  btn.disabled = false;
+}
+
+// ── Build Reports ─────────────────────────────────────────────────────────────
+function buildReports(dtlRows) {
+  // Fields confirmed from API response:
+  // dtl: item_id.key, lpn_id.key, expected_locn_id.key, expected_qty, counted_qty, create_ts, create_user
+  // hdr (attached as _hdr): status_id, location_id.key, create_ts, create_user
+
+  // adj_qty = counted_qty - expected_qty (no adj_qty field in dtl)
+
+  // ── FINANCE: aggregate by item_code + status_id ─────────────────────────
+  const financeMap = {};
+  dtlRows.forEach(d => {
+    const itemCode = d.item_id?.key  || String(d.item_id?.id || '');
+    const statusId = String(d._hdr?.status_id ?? '');
+    if (!itemCode) return;
+    const key = itemCode + '|' + statusId;
+    if (!financeMap[key]) {
+      financeMap[key] = {
+        itemCode,
+        description: '',   // not in dtl; enriched later if cost file has it
+        unitCost:    costMap[itemCode] || 0,
+        expectedQty: 0,
+        countedQty:  0,
+        adjQty:      0,
+        statusId,
+      };
+    }
+    const exp = Number(d.expected_qty) || 0;
+    const cnt = Number(d.counted_qty)  || 0;
+    financeMap[key].expectedQty += exp;
+    financeMap[key].countedQty  += cnt;
+    financeMap[key].adjQty      += (cnt - exp);
+  });
+
+  reportFinance = Object.values(financeMap).map(f => ({
+    ...f,
+    adjCost: f.adjQty * f.unitCost,
+  }));
+  reportFinance.sort((a,b) => Math.abs(b.adjQty) - Math.abs(a.adjQty) || a.itemCode.localeCompare(b.itemCode));
+
+  // ── LOCATION: one row per dtl record ────────────────────────────────────
+  reportLocation = dtlRows.map(d => {
+    const exp = Number(d.expected_qty) || 0;
+    const cnt = Number(d.counted_qty)  || 0;
+    return {
+      location:   d._hdr?.location_id?.key || d.expected_locn_id?.key || '',
+      lpnNbr:     d.lpn_id?.key || '',
+      itemCode:   d.item_id?.key || String(d.item_id?.id || ''),
+      description:'',
+      expectedQty: exp,
+      countedQty:  cnt,
+      adjQty:      cnt - exp,
+      statusId:    String(d._hdr?.status_id ?? ''),
+      createDate:  fmtDate(d._hdr?.create_ts || d.create_ts),
+    };
+  });
+  reportLocation.sort((a,b) => a.location.localeCompare(b.location) || a.itemCode.localeCompare(b.itemCode));
+
+  // Summary
+  const pending = reportFinance.filter(f => f.statusId === '30').length;
+  const adjItems = reportFinance.filter(f => f.adjQty !== 0).length;
+  const netCost  = reportFinance.reduce((s,f) => s + f.adjCost, 0);
+  const hasCost  = Object.keys(costMap).length > 0;
+  document.getElementById('summary-bar').innerHTML = `
+    <div class="chip chip-gray">📄 ${dtlRows.length.toLocaleString()} detail lines</div>
+    <div class="chip ${pending > 0 ? 'chip-orange' : 'chip-gray'}">🟠 ${pending} pending items</div>
+    <div class="chip ${adjItems > 0 ? 'chip-orange' : 'chip-green'}">⚖️ ${adjItems} items with variance</div>
+    ${hasCost ? `<div class="chip ${netCost < 0 ? 'chip-red' : 'chip-green'}">💲 Net: ${netCost>=0?'+':''}$${Math.abs(netCost).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>` : ''}
+  `;
+  document.getElementById('badge-finance').textContent  = reportFinance.length;
+  document.getElementById('badge-location').textContent = reportLocation.length;
+
+  renderFinance();
+  renderLocation();
+}
+
+function fmtDate(raw) {
+  if (!raw) return '';
+  const d = new Date(raw);
+  if (isNaN(d)) return String(raw);
+  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear()
+       + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function statusPill(sid) {
+  const css = STATUS_CSS[sid]   || 'other';
+  const lbl = STATUS_LABEL[sid] || ('Status ' + sid);
+  return `<span class="status-pill ${css}">${lbl}</span>`;
+}
+function adjBadge(adj) {
+  if (adj === 0) return `<span class="badge-variance badge-match">✓ Match</span>`;
+  if (adj > 0)   return `<span class="badge-variance badge-over">+${adj} Over</span>`;
+  return             `<span class="badge-variance badge-short">${adj} Short</span>`;
+}
+function fmtNum(n) {
+  if (n === 0) return `<span class="adj-zero">0</span>`;
+  return `<span class="${n>0?'adj-pos':'adj-neg'}">${n>0?'+':''}${n.toLocaleString()}</span>`;
+}
+function fmtCost(n) {
+  if (n === 0) return `<span class="adj-zero">—</span>`;
+  const s = (n<0?'-':'+') + '$' + Math.abs(n).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return `<span class="${n<0?'cost-neg':'cost-pos'}">${s}</span>`;
+}
+
+function renderFinance(data) {
+  const rows  = data || reportFinance;
+  const tbody = document.getElementById('tbody-finance');
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📭</div><p>No items found</p></div></td></tr>`; return; }
+  tbody.innerHTML = rows.map(f => `
+    <tr>
+      <td><strong>${f.itemCode}</strong></td>
+      <td>${f.description}</td>
+      <td style="text-align:right">${f.unitCost > 0 ? '$'+f.unitCost.toFixed(2) : '<span class="adj-zero">—</span>'}</td>
+      <td style="text-align:right">${f.expectedQty.toLocaleString()}</td>
+      <td style="text-align:right">${f.countedQty.toLocaleString()}</td>
+      <td style="text-align:right">${fmtNum(f.adjQty)}</td>
+      <td style="text-align:right">${fmtCost(f.adjCost)}</td>
+      <td>${statusPill(Number(f.statusId))}</td>
+      <td>${adjBadge(f.adjQty)}</td>
+    </tr>`).join('');
+  document.getElementById('count-finance').textContent = rows.length + ' items';
+}
+
+function renderLocation(data) {
+  const rows  = data || reportLocation;
+  const tbody = document.getElementById('tbody-location');
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📭</div><p>No records found</p></div></td></tr>`; return; }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><strong>${r.location}</strong></td>
+      <td style="font-family:monospace;font-size:11px">${r.lpnNbr}</td>
+      <td>${r.itemCode}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;">${r.description}</td>
+      <td style="text-align:right">${r.expectedQty.toLocaleString()}</td>
+      <td style="text-align:right">${r.countedQty.toLocaleString()}</td>
+      <td style="text-align:right">${fmtNum(r.adjQty)}</td>
+      <td>${statusPill(Number(r.statusId))}</td>
+      <td style="color:var(--gray-5);font-size:11px">${r.createDate}</td>
+    </tr>`).join('');
+  document.getElementById('count-location').textContent = rows.length + ' records';
+}
+
+// ── Filter & Sort ─────────────────────────────────────────────────────────────
+function filterTable(tab, query) {
+  const q   = (query||'').toLowerCase();
+  const adj = document.getElementById(`filter-${tab}-adj`)?.value    || 'all';
+  const st  = document.getElementById(`filter-${tab}-status`)?.value || 'all';
+
+  if (tab === 'finance') {
+    renderFinance(reportFinance.filter(f => {
+      const m = !q || f.itemCode.toLowerCase().includes(q) || f.description.toLowerCase().includes(q);
+      const a = adj==='all' || (adj==='adj'&&f.adjQty!==0) || (adj==='match'&&f.adjQty===0);
+      const s = st==='all'  || f.statusId === st;
+      return m && a && s;
+    }));
+  } else {
+    renderLocation(reportLocation.filter(r => {
+      const m = !q || r.location.toLowerCase().includes(q) || r.itemCode.toLowerCase().includes(q) || r.lpnNbr.toLowerCase().includes(q);
+      const a = adj==='all' || (adj==='adj'&&r.adjQty!==0) || (adj==='match'&&r.adjQty===0);
+      const s = st==='all'  || r.statusId === st;
+      return m && a && s;
+    }));
+  }
+}
+
+function sortTable(tab, col) {
+  const state = sortState[tab];
+  const asc   = state.col === col ? !state.asc : true;
+  sortState[tab] = { col, asc };
+  document.querySelectorAll(`#table-${tab} th`).forEach((th,i) => {
+    th.classList.remove('sort-asc','sort-desc');
+    if (i===col) th.classList.add(asc?'sort-asc':'sort-desc');
+  });
+  const getVal = (o,c,t) => {
+    if (t==='finance')  return [o.itemCode,o.description,o.unitCost,o.expectedQty,o.countedQty,o.adjQty,o.adjCost,o.statusId,''][c];
+    if (t==='location') return [o.location,o.lpnNbr,o.itemCode,o.description,o.expectedQty,o.countedQty,o.adjQty,o.statusId,o.createDate][c];
+  };
+  const ds = { finance: reportFinance, location: reportLocation };
+  ds[tab].sort((a,b) => {
+    const av=getVal(a,col,tab), bv=getVal(b,col,tab);
+    if (typeof av==='number') return asc ? av-bv : bv-av;
+    return asc ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+  });
+  if (tab==='finance')  renderFinance();
+  if (tab==='location') renderLocation();
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab,.tab-panel').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function exportReport(tab) {
+  const today = () => { const d=new Date(); return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0'); };
+  let wsData, filename;
+  if (tab==='finance') {
+    wsData = [
+      ['Item Code','Description','Unit Cost','Expected Qty','Counted Qty','Adj Qty','Adj Cost','Status'],
+      ...reportFinance.map(f=>[f.itemCode,f.description,f.unitCost||'',f.expectedQty,f.countedQty,f.adjQty,f.adjCost||'',STATUS_LABEL[f.statusId]||f.statusId])
+    ];
+    filename = `CC_Finance_API_${today()}.xlsx`;
+  } else {
+    wsData = [
+      ['Location','LPN','Item Code','Description','Expected Qty','Counted Qty','Adj Qty','Status','Create Date'],
+      ...reportLocation.map(r=>[r.location,r.lpnNbr,r.itemCode,r.description,r.expectedQty,r.countedQty,r.adjQty,STATUS_LABEL[r.statusId]||r.statusId,r.createDate])
+    ];
+    filename = `CC_Location_API_${today()}.xlsx`;
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = wsData[0].map((_,i)=>({wch:[18,36,10,14,14,14,14,14,18][i]||14}));
+  XLSX.utils.book_append_sheet(wb, ws, tab==='finance'?'Finance':'By Location');
+  XLSX.writeFile(wb, filename);
+}
+
+// ── Verbose Log ───────────────────────────────────────────────────────────────
+const logLines = [];
+function log(type, msg) {
+  const ts  = new Date().toTimeString().slice(0,8);
+  logLines.push({ ts, type, msg });
+  const panel = document.getElementById('log-panel');
+  const lines = document.getElementById('log-lines');
+  panel.classList.add('show');
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  div.innerHTML = `<span class="log-ts">${ts}</span><span class="log-${type}">${msg}</span>`;
+  lines.appendChild(div);
+  lines.scrollTop = lines.scrollHeight;
+}
+function copyLog() {
+  const text = logLines.map(l => `[${l.ts}] [${l.type.toUpperCase()}] ${l.msg}`).join('\n');
+  navigator.clipboard.writeText(text).then(() => alert('Log copied to clipboard'));
+}
+function clearLog() { logLines.length = 0; document.getElementById('log-lines').innerHTML = ''; }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function showLog(type, msg) {
+  const cls = {error:'alert-error',success:'alert-success',info:'alert-info',warn:'alert-warn'}[type]||'alert-info';
+  document.getElementById('fetch-log').innerHTML = `<div class="alert ${cls}" style="margin-top:12px;">${msg}</div>`;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(function() {
+  const to   = new Date();
+  const from = new Date(to);
+  from.setDate(from.getDate() - 30);
+  const fmt  = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  document.getElementById('date-to').value   = fmt(to);
+  document.getElementById('date-from').value = fmt(from);
+  selectEnv('test');
+})();
+</script>
+</body>
+</html>
