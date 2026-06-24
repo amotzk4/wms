@@ -562,7 +562,7 @@ async function startFetch() {
 
   try {
     clearLog();
-    log('info', `Starting fetch — from: ${fromVal} to: ${toVal} — statuses: ${wantedStatuses.join(',')}`);
+    log('info', `Starting fetch — from: ${fromVal} to: ${toVal} — all statuses except 99`);
 
     // ── PHASE 1: fetch cc_adjustment_hdr filtered by date ──────────────────
     // The API doesn't support date-range filter with = syntax reliably,
