@@ -255,57 +255,10 @@
           <input type="date" id="date-to">
         </div>
       </div>
-      <div style="margin-top:14px;">
-        <div style="font-size:11px;font-weight:600;color:var(--gray-5);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Include status:</div>
-        <div class="status-filters">
-          <label class="status-chip active pending" id="chip-pending">
-            <input type="checkbox" id="chk-pending" checked onchange="toggleChip('pending')">
-            🟠 Pending (status 30)
-          </label>
-          <label class="status-chip active approved" id="chip-approved">
-            <input type="checkbox" id="chk-approved" checked onchange="toggleChip('approved')">
-            🔵 Approved (status 50)
-          </label>
-          <label class="status-chip inprog" id="chip-inprog">
-            <input type="checkbox" id="chk-inprog" onchange="toggleChip('inprog')">
-            🔄 In Progress (status 20)
-          </label>
-          <label class="status-chip novar" id="chip-novar">
-            <input type="checkbox" id="chk-novar" onchange="toggleChip('novar')">
-            ✅ No Variance (status 70)
-          </label>
-        </div>
-        <div class="alert alert-warn" style="margin-top:12px;">
-          ⚠️ <strong>Pending (30)</strong> = variance exists, awaiting approval — these don't appear in CC History export.<br>
-          <strong>Approved (50)</strong> = approved but not yet posted to inventory.<br>
-          <strong>No Variance (70)</strong> = counted qty matched expected, auto-closed.
-        </div>
-      </div>
     </div>
   </div>
 
-  <!-- STEP 3 -->
-  <div class="step-card">
-    <div class="step-header">
-      <div class="step-num" id="step3-num">3</div>
-      <div>
-        <div class="step-title">Unit Cost Reference <span style="font-weight:400;color:var(--gray-4);font-size:12px;">(optional)</span></div>
-        <div class="step-desc">Upload to enable Adjusted Cost column · file must have "Item Code" + "Unit Cost" columns</div>
-      </div>
-    </div>
-    <div class="step-body">
-      <div class="cost-row">
-        <div class="cost-icon">💰</div>
-        <div class="cost-text">
-          <strong>Adjusted Cost column will show 0 without this file</strong>
-          <span>Upload the Finance CC file or any Excel/CSV with Item Code and Unit Cost</span>
-        </div>
-        <div id="cost-upload-area">
-          <label class="cost-upload-btn">⬆ Upload Cost File<input type="file" accept=".xlsx,.xls,.csv" onchange="handleCostFile(event)"></label>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- STEP 3 (was cost file - removed, costs come from API) -->
 
   <!-- STEP 4 -->
   <div class="step-card">
@@ -313,7 +266,7 @@
       <div class="step-num" id="step4-num">4</div>
       <div>
         <div class="step-title">Fetch & Generate Reports</div>
-        <div class="step-desc">Step 1: fetch HDR (by date+status) → Step 2: fetch DTL for each HDR → Step 3: build Finance + Location reports</div>
+        <div class="step-desc">Fetches all HDR records in date range → all DTL lines → Finance + Location reports</div>
       </div>
     </div>
     <div class="step-body">
@@ -355,13 +308,6 @@
               <option value="adj">Adjustments only</option>
               <option value="match">No variance only</option>
             </select>
-            <select class="filter-select" id="filter-finance-status" onchange="filterTable('finance',document.querySelector('#panel-finance .search-input').value)">
-              <option value="all">All statuses</option>
-              <option value="20">In Progress (20)</option>
-              <option value="30">Pending (30)</option>
-              <option value="50">Approved (50)</option>
-              <option value="70">No Variance (70)</option>
-            </select>
             <span class="row-count" id="count-finance"></span>
             <button class="btn-export" onclick="exportReport('finance')">⬇ Export Excel</button>
           </div>
@@ -375,8 +321,6 @@
                 <th onclick="sortTable('finance',4)" style="text-align:right">Counted Qty</th>
                 <th onclick="sortTable('finance',5)" style="text-align:right">Adj Qty</th>
                 <th onclick="sortTable('finance',6)" style="text-align:right">Adj Cost</th>
-                <th onclick="sortTable('finance',7)">Status</th>
-                <th onclick="sortTable('finance',8)">Variance</th>
               </tr></thead>
               <tbody id="tbody-finance"></tbody>
             </table>
@@ -392,13 +336,6 @@
               <option value="adj">Adjustments only</option>
               <option value="match">No variance only</option>
             </select>
-            <select class="filter-select" id="filter-location-status" onchange="filterTable('location',document.querySelector('#panel-location .search-input').value)">
-              <option value="all">All statuses</option>
-              <option value="20">In Progress (20)</option>
-              <option value="30">Pending (30)</option>
-              <option value="50">Approved (50)</option>
-              <option value="70">No Variance (70)</option>
-            </select>
             <span class="row-count" id="count-location"></span>
             <button class="btn-export" onclick="exportReport('location')">⬇ Export Excel</button>
           </div>
@@ -412,8 +349,9 @@
                 <th onclick="sortTable('location',4)" style="text-align:right">Expected Qty</th>
                 <th onclick="sortTable('location',5)" style="text-align:right">Counted Qty</th>
                 <th onclick="sortTable('location',6)" style="text-align:right">Adj Qty</th>
-                <th onclick="sortTable('location',7)">Status</th>
-                <th onclick="sortTable('location',8)">Create Date</th>
+                <th onclick="sortTable('location',7)" style="text-align:right">Unit Cost</th>
+                <th onclick="sortTable('location',8)" style="text-align:right">Adj Cost</th>
+                <th onclick="sortTable('location',9)">Create Date</th>
               </tr></thead>
               <tbody id="tbody-location"></tbody>
             </table>
@@ -609,13 +547,6 @@ async function startFetch() {
   if (!user || !pass) { showLog('error', 'Enter username and password.'); return; }
   if (!fromVal || !toVal) { showLog('error', 'Set both From and To dates.'); return; }
 
-  const wantedStatuses = [];
-  if (document.getElementById('chk-inprog').checked)   wantedStatuses.push(STATUS.IN_PROGRESS);
-  if (document.getElementById('chk-pending').checked)  wantedStatuses.push(STATUS.PENDING);
-  if (document.getElementById('chk-approved').checked) wantedStatuses.push(STATUS.APPROVED);
-  if (document.getElementById('chk-novar').checked)    wantedStatuses.push(STATUS.NO_VARIANCE);
-  if (!wantedStatuses.length) { showLog('error', 'Select at least one status.'); return; }
-
   const auth = getAuth();
   const btn  = document.getElementById('btn-generate');
   btn.disabled = true;
@@ -659,24 +590,20 @@ async function startFetch() {
       log('info', `HDR date range in DB: ${dates[0]} → ${dates[dates.length-1]}`);
     }
 
-    // Filter by date and status client-side
+    // Filter by date only — exclude status 99 (Cancelled)
     const filteredHdr = allHdr.filter(h => {
       const ts = new Date(h.create_ts);
-      return ts >= fromDate && ts <= toDate && wantedStatuses.includes(h.status_id);
+      return ts >= fromDate && ts <= toDate && h.status_id !== 99;
     });
 
     // Log status breakdown
     const statusCounts = {};
     allHdr.forEach(h => { statusCounts[h.status_id] = (statusCounts[h.status_id]||0)+1; });
     log('info', `Status breakdown (all HDR): ${JSON.stringify(statusCounts)}`);
-
-    // Log date-only filter result (ignoring status)
-    const dateOnly = allHdr.filter(h => { const ts = new Date(h.create_ts); return ts >= fromDate && ts <= toDate; });
-    log('info', `After date filter only: ${dateOnly.length} headers`);
-    log('info', `After date+status filter: ${filteredHdr.length} headers`);
+    log('info', `After date filter: ${filteredHdr.length} headers`);
 
     if (!filteredHdr.length) {
-      showLog('warn', `Fetched ${allHdr.length} headers total — 0 matched the date range and selected statuses. Check the execution log below for details.`);
+      showLog('warn', `Fetched ${allHdr.length} headers total — 0 matched the date range. Try widening the date range.`);
       pw.classList.remove('show');
       btn.disabled = false;
       return;
@@ -726,6 +653,35 @@ async function startFetch() {
       await new Promise(r => setTimeout(r, 0));
     }
 
+    fill.style.width = '90%';
+    ptxt.textContent = 'Fetching item descriptions…';
+
+    // ── PHASE 3: fetch item descriptions for all unique item IDs ─────────────
+    const uniqueItemIds = [...new Set(allDtl.map(d => d.item_id?.id).filter(Boolean))];
+    log('info', `Fetching descriptions for ${uniqueItemIds.length} unique items (batches of 10)`);
+    const itemDescMap = {};
+    const ITEM_BATCH = 10;
+    for (let i = 0; i < uniqueItemIds.length; i += ITEM_BATCH) {
+      const batch = uniqueItemIds.slice(i, i + ITEM_BATCH);
+      await Promise.all(batch.map(async itemId => {
+        try {
+          const resp = await fetch(`${base}/item/${itemId}`, {
+            headers: { 'Authorization': auth, 'Accept': 'application/json' }
+          });
+          if (resp.ok) {
+            const j = await resp.json();
+            // try common description field names
+            const desc = j.description || j.item_description || j.short_description || j.name || '';
+            itemDescMap[itemId] = desc;
+          }
+        } catch(e) { /* skip silently */ }
+      }));
+      ptxt.textContent = `Fetching descriptions… ${Math.min(i + ITEM_BATCH, uniqueItemIds.length)}/${uniqueItemIds.length}`;
+      pcnt.textContent = `${Object.keys(itemDescMap).length} descriptions loaded`;
+      await new Promise(r => setTimeout(r, 0));
+    }
+    log('ok', `Descriptions fetched: ${Object.keys(itemDescMap).length}/${uniqueItemIds.length}`);
+
     fill.style.width = '95%';
     ptxt.textContent = 'Building reports…';
 
@@ -736,7 +692,7 @@ async function startFetch() {
       return;
     }
 
-    buildReports(allDtl);
+    buildReports(allDtl, itemDescMap);
     log('ok', `Reports built: ${reportFinance.length} finance rows, ${reportLocation.length} location rows`);
 
     fill.style.width = '100%';
@@ -759,72 +715,70 @@ async function startFetch() {
 }
 
 // ── Build Reports ─────────────────────────────────────────────────────────────
-function buildReports(dtlRows) {
-  // Fields confirmed from API response:
-  // dtl: item_id.key, lpn_id.key, expected_locn_id.key, expected_qty, counted_qty, create_ts, create_user
-  // hdr (attached as _hdr): status_id, location_id.key, create_ts, create_user
-
-  // adj_qty = counted_qty - expected_qty (no adj_qty field in dtl)
-
-  // ── FINANCE: aggregate by item_code + status_id ─────────────────────────
+function buildReports(dtlRows, itemDescMap = {}) {
+  // ── FINANCE: aggregate by item_code only (all statuses combined) ────────────
   const financeMap = {};
   dtlRows.forEach(d => {
-    const itemCode = d.item_id?.key  || String(d.item_id?.id || '');
-    const statusId = String(d._hdr?.status_id ?? '');
+    const itemCode = d.item_id?.key || String(d.item_id?.id || '');
+    const itemId   = d.item_id?.id;
     if (!itemCode) return;
-    const key = itemCode + '|' + statusId;
-    if (!financeMap[key]) {
-      financeMap[key] = {
+    if (!financeMap[itemCode]) {
+      financeMap[itemCode] = {
         itemCode,
-        description: '',   // not in dtl; enriched later if cost file has it
-        unitCost:    costMap[itemCode] || 0,
+        itemId,
+        description: itemDescMap[itemId] || '',
+        unitCost:    Number(d.unit_cost) || 0,
         expectedQty: 0,
         countedQty:  0,
         adjQty:      0,
-        statusId,
+        adjCost:     0,
       };
+    }
+    // update unitCost if not yet set (take first non-zero value)
+    if (!financeMap[itemCode].unitCost && Number(d.unit_cost)) {
+      financeMap[itemCode].unitCost = Number(d.unit_cost);
+    }
+    if (!financeMap[itemCode].description && itemDescMap[itemId]) {
+      financeMap[itemCode].description = itemDescMap[itemId];
     }
     const exp = Number(d.expected_qty) || 0;
     const cnt = Number(d.counted_qty)  || 0;
-    financeMap[key].expectedQty += exp;
-    financeMap[key].countedQty  += cnt;
-    financeMap[key].adjQty      += (cnt - exp);
+    financeMap[itemCode].expectedQty += exp;
+    financeMap[itemCode].countedQty  += cnt;
+    financeMap[itemCode].adjQty      += (cnt - exp);
+    financeMap[itemCode].adjCost     += Number(d.adj_cost) || 0;
   });
 
-  reportFinance = Object.values(financeMap).map(f => ({
-    ...f,
-    adjCost: f.adjQty * f.unitCost,
-  }));
+  reportFinance = Object.values(financeMap);
   reportFinance.sort((a,b) => Math.abs(b.adjQty) - Math.abs(a.adjQty) || a.itemCode.localeCompare(b.itemCode));
 
   // ── LOCATION: one row per dtl record ────────────────────────────────────
   reportLocation = dtlRows.map(d => {
-    const exp = Number(d.expected_qty) || 0;
-    const cnt = Number(d.counted_qty)  || 0;
+    const exp    = Number(d.expected_qty) || 0;
+    const cnt    = Number(d.counted_qty)  || 0;
+    const itemId = d.item_id?.id;
     return {
-      location:   d._hdr?.location_id?.key || d.expected_locn_id?.key || '',
-      lpnNbr:     d.lpn_id?.key || '',
-      itemCode:   d.item_id?.key || String(d.item_id?.id || ''),
-      description:'',
+      location:    d._hdr?.location_id?.key || d.expected_locn_id?.key || '',
+      lpnNbr:      d.lpn_id?.key || '',
+      itemCode:    d.item_id?.key || String(itemId || ''),
+      description: itemDescMap[itemId] || '',
       expectedQty: exp,
       countedQty:  cnt,
       adjQty:      cnt - exp,
-      statusId:    String(d._hdr?.status_id ?? ''),
+      unitCost:    Number(d.unit_cost) || 0,
+      adjCost:     Number(d.adj_cost)  || 0,
       createDate:  fmtDate(d._hdr?.create_ts || d.create_ts),
     };
   });
   reportLocation.sort((a,b) => a.location.localeCompare(b.location) || a.itemCode.localeCompare(b.itemCode));
 
   // Summary
-  const pending = reportFinance.filter(f => f.statusId === '30').length;
   const adjItems = reportFinance.filter(f => f.adjQty !== 0).length;
   const netCost  = reportFinance.reduce((s,f) => s + f.adjCost, 0);
-  const hasCost  = Object.keys(costMap).length > 0;
   document.getElementById('summary-bar').innerHTML = `
     <div class="chip chip-gray">📄 ${dtlRows.length.toLocaleString()} detail lines</div>
-    <div class="chip ${pending > 0 ? 'chip-orange' : 'chip-gray'}">🟠 ${pending} pending items</div>
     <div class="chip ${adjItems > 0 ? 'chip-orange' : 'chip-green'}">⚖️ ${adjItems} items with variance</div>
-    ${hasCost ? `<div class="chip ${netCost < 0 ? 'chip-red' : 'chip-green'}">💲 Net: ${netCost>=0?'+':''}$${Math.abs(netCost).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>` : ''}
+    <div class="chip ${netCost < 0 ? 'chip-red' : netCost > 0 ? 'chip-green' : 'chip-gray'}">💲 Net Adj Cost: ${netCost>=0?'+':''}$${Math.abs(netCost).toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
   `;
   document.getElementById('badge-finance').textContent  = reportFinance.length;
   document.getElementById('badge-location').textContent = reportLocation.length;
@@ -865,18 +819,16 @@ function fmtCost(n) {
 function renderFinance(data) {
   const rows  = data || reportFinance;
   const tbody = document.getElementById('tbody-finance');
-  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📭</div><p>No items found</p></div></td></tr>`; return; }
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📭</div><p>No items found</p></div></td></tr>`; return; }
   tbody.innerHTML = rows.map(f => `
     <tr>
       <td><strong>${f.itemCode}</strong></td>
-      <td>${f.description}</td>
+      <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;">${f.description}</td>
       <td style="text-align:right">${f.unitCost > 0 ? '$'+f.unitCost.toFixed(2) : '<span class="adj-zero">—</span>'}</td>
       <td style="text-align:right">${f.expectedQty.toLocaleString()}</td>
       <td style="text-align:right">${f.countedQty.toLocaleString()}</td>
       <td style="text-align:right">${fmtNum(f.adjQty)}</td>
       <td style="text-align:right">${fmtCost(f.adjCost)}</td>
-      <td>${statusPill(Number(f.statusId))}</td>
-      <td>${adjBadge(f.adjQty)}</td>
     </tr>`).join('');
   document.getElementById('count-finance').textContent = rows.length + ' items';
 }
@@ -884,17 +836,18 @@ function renderFinance(data) {
 function renderLocation(data) {
   const rows  = data || reportLocation;
   const tbody = document.getElementById('tbody-location');
-  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📭</div><p>No records found</p></div></td></tr>`; return; }
+  if (!rows.length) { tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📭</div><p>No records found</p></div></td></tr>`; return; }
   tbody.innerHTML = rows.map(r => `
     <tr>
       <td><strong>${r.location}</strong></td>
       <td style="font-family:monospace;font-size:11px">${r.lpnNbr}</td>
       <td>${r.itemCode}</td>
-      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;">${r.description}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${r.description}</td>
       <td style="text-align:right">${r.expectedQty.toLocaleString()}</td>
       <td style="text-align:right">${r.countedQty.toLocaleString()}</td>
       <td style="text-align:right">${fmtNum(r.adjQty)}</td>
-      <td>${statusPill(Number(r.statusId))}</td>
+      <td style="text-align:right">${r.unitCost > 0 ? '$'+r.unitCost.toFixed(2) : '<span class="adj-zero">—</span>'}</td>
+      <td style="text-align:right">${fmtCost(r.adjCost)}</td>
       <td style="color:var(--gray-5);font-size:11px">${r.createDate}</td>
     </tr>`).join('');
   document.getElementById('count-location').textContent = rows.length + ' records';
@@ -903,22 +856,19 @@ function renderLocation(data) {
 // ── Filter & Sort ─────────────────────────────────────────────────────────────
 function filterTable(tab, query) {
   const q   = (query||'').toLowerCase();
-  const adj = document.getElementById(`filter-${tab}-adj`)?.value    || 'all';
-  const st  = document.getElementById(`filter-${tab}-status`)?.value || 'all';
+  const adj = document.getElementById(`filter-${tab}-adj`)?.value || 'all';
 
   if (tab === 'finance') {
     renderFinance(reportFinance.filter(f => {
       const m = !q || f.itemCode.toLowerCase().includes(q) || f.description.toLowerCase().includes(q);
       const a = adj==='all' || (adj==='adj'&&f.adjQty!==0) || (adj==='match'&&f.adjQty===0);
-      const s = st==='all'  || f.statusId === st;
-      return m && a && s;
+      return m && a;
     }));
   } else {
     renderLocation(reportLocation.filter(r => {
       const m = !q || r.location.toLowerCase().includes(q) || r.itemCode.toLowerCase().includes(q) || r.lpnNbr.toLowerCase().includes(q);
       const a = adj==='all' || (adj==='adj'&&r.adjQty!==0) || (adj==='match'&&r.adjQty===0);
-      const s = st==='all'  || r.statusId === st;
-      return m && a && s;
+      return m && a;
     }));
   }
 }
@@ -932,8 +882,8 @@ function sortTable(tab, col) {
     if (i===col) th.classList.add(asc?'sort-asc':'sort-desc');
   });
   const getVal = (o,c,t) => {
-    if (t==='finance')  return [o.itemCode,o.description,o.unitCost,o.expectedQty,o.countedQty,o.adjQty,o.adjCost,o.statusId,''][c];
-    if (t==='location') return [o.location,o.lpnNbr,o.itemCode,o.description,o.expectedQty,o.countedQty,o.adjQty,o.statusId,o.createDate][c];
+    if (t==='finance')  return [o.itemCode,o.description,o.unitCost,o.expectedQty,o.countedQty,o.adjQty,o.adjCost][c];
+    if (t==='location') return [o.location,o.lpnNbr,o.itemCode,o.description,o.expectedQty,o.countedQty,o.adjQty,o.unitCost,o.adjCost,o.createDate][c];
   };
   const ds = { finance: reportFinance, location: reportLocation };
   ds[tab].sort((a,b) => {
@@ -957,14 +907,14 @@ function exportReport(tab) {
   let wsData, filename;
   if (tab==='finance') {
     wsData = [
-      ['Item Code','Description','Unit Cost','Expected Qty','Counted Qty','Adj Qty','Adj Cost','Status'],
-      ...reportFinance.map(f=>[f.itemCode,f.description,f.unitCost||'',f.expectedQty,f.countedQty,f.adjQty,f.adjCost||'',STATUS_LABEL[f.statusId]||f.statusId])
+      ['Item Code','Description','Unit Cost','Expected Qty','Counted Qty','Adj Qty','Adj Cost'],
+      ...reportFinance.map(f=>[f.itemCode,f.description,f.unitCost||'',f.expectedQty,f.countedQty,f.adjQty,f.adjCost||''])
     ];
     filename = `CC_Finance_API_${today()}.xlsx`;
   } else {
     wsData = [
-      ['Location','LPN','Item Code','Description','Expected Qty','Counted Qty','Adj Qty','Status','Create Date'],
-      ...reportLocation.map(r=>[r.location,r.lpnNbr,r.itemCode,r.description,r.expectedQty,r.countedQty,r.adjQty,STATUS_LABEL[r.statusId]||r.statusId,r.createDate])
+      ['Location','LPN','Item Code','Description','Expected Qty','Counted Qty','Adj Qty','Unit Cost','Adj Cost','Create Date'],
+      ...reportLocation.map(r=>[r.location,r.lpnNbr,r.itemCode,r.description,r.expectedQty,r.countedQty,r.adjQty,r.unitCost||'',r.adjCost||'',r.createDate])
     ];
     filename = `CC_Location_API_${today()}.xlsx`;
   }
